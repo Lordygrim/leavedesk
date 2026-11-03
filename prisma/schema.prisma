@@ -1,0 +1,78 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String         @id @default(cuid())
+  name          String
+  email         String         @unique
+  passwordHash  String
+  roleId        String
+  role          Role           @relation(fields: [roleId], references: [id])
+  department    String         // department or practice area
+  requests      LeaveRequest[]
+  notifications Notification[]
+}
+
+// Law firm roles. The role name is the person's title; isAdmin decides who can open the HR dashboard.
+model Role {
+  id          String  @id @default(cuid())
+  name        String  @unique
+  isAdmin     Boolean @default(false)
+  selfApprove Boolean @default(false) // the owner's own leave is approved automatically
+  users       User[]
+}
+
+model LeaveType {
+  id          String         @id @default(cuid())
+  name        String         @unique
+  daysPerYear Int
+  requests    LeaveRequest[]
+}
+
+model LeaveRequest {
+  id               String    @id @default(cuid())
+  userId           String
+  user             User      @relation(fields: [userId], references: [id])
+  typeId           String
+  type             LeaveType @relation(fields: [typeId], references: [id])
+  startDate        String    // YYYY-MM-DD, date-only on purpose
+  endDate          String
+  workingDays      Int
+  reportBackDate   String
+  status           String    @default("PENDING") // PENDING, APPROVED, DECLINED
+  note             String?
+  decisionReason   String?
+  decidedBy        String?
+  decidedAt        DateTime?
+  actualReturnDate String?
+  createdAt        DateTime  @default(now())
+}
+
+model Holiday {
+  id   String @id @default(cuid())
+  date String @unique
+  name String
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  title     String
+  body      String
+  createdAt DateTime @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actor     String
+  action    String
+  detail    String
+  createdAt DateTime @default(now())
+}

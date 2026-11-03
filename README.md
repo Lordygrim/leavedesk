@@ -1,0 +1,45 @@
+# LeaveDesk
+
+One Next.js app with two role-based areas: the **employee app** (`/home`, `/request`, `/my-leave`, `/alerts`) and the **HR dashboard** (`/admin/...`). Employees can only open the app. HR admins can open both.
+
+Stack: Next.js 15 (App Router) + TypeScript, Prisma + SQLite (zero setup), cookie sessions (jose + bcryptjs), Tailwind CSS v4 with a light theme and a dark Nordic theme (colors are CSS variables mapped to Tailwind tokens in `app/globals.css`).
+
+## Run it in VS Code
+
+1. Install Node.js 20 or newer (https://nodejs.org), then open this folder in VS Code (File > Open Folder).
+2. Open the terminal (Terminal > New Terminal) and run:
+
+```
+npm install
+npx prisma db push --force-reset
+npx prisma db seed
+npm run dev
+```
+
+3. Open http://localhost:3000
+
+## Demo accounts (password for all: `Password123!`)
+
+- Admins: michaelsila@company.co.ke (Managing Partner) and susan.wambui@company.co.ke (HR Manager)
+- Employee: michaelmuoki@company.co.ke (Associate). Other staff: daniel.mutua, faith.chebet, kevin.kamau, joy.achieng, peter.mwangi, brian.otieno @company.co.ke
+
+## Roles (law firm)
+
+- The `Role` table holds the firm's job titles: Managing Partner, HR Manager, Partner, Senior Associate, Associate, Pupil, Paralegal, Legal Secretary, Law Clerk, Receptionist, Accountant, Office Administrator. Edit it to match each client.
+- `isAdmin` on a role decides who can open the HR dashboard. By default that is the **Managing Partner (the owner)** and the **HR Manager**. Everyone else can only open the employee app.
+- `selfApprove` is true for the Managing Partner, so the owner's own leave is approved automatically. Everyone else, including other admins, needs another admin to approve their leave.
+- `middleware.ts` does a fast redirect. `lib/dal.ts` (`requireUser`, `requireAdmin`) is the real check, and it reads the role from the database on every request, so removing admin access takes effect immediately.
+- To give a role admin access, set `isAdmin` to true on it in Prisma Studio (`npx prisma studio`).
+
+## Notes
+
+- Dates are plain `YYYY-MM-DD` strings; "today" uses the Africa/Nairobi time zone.
+- Working days skip weekends and the `Holiday` table. The seed has 2026 fixed-date Kenyan holidays only. Add moveable holidays (such as Eid) and check the official gazette.
+- Approved leave stays flagged "Overdue" on the dashboard until HR records the actual return.
+- On Next.js 16, rename `middleware.ts` to `proxy.ts` and export `proxy` instead of `middleware`.
+- Moving to Postgres: change `provider` to `postgresql` in `prisma/schema.prisma`, set `DATABASE_URL`, run `npx prisma db push`.
+- Before deploying, set a new long random `AUTH_SECRET`.
+
+## Not built yet
+
+Team calendar, employee calendar, policy editing (leave types and holidays), email sending, scheduled reminders, user management, password reset.
