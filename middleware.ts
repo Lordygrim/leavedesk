@@ -16,4 +16,4 @@ export async function middleware(req: NextRequest) {
   if (req.nextUrl.pathname.startsWith("/admin") && !admin) return NextResponse.redirect(new URL("/home", req.url));
   return NextResponse.next();
 }
-export const config = { matcher: ["/((?!_next|favicon.ico|sign-in).*)"] };
+export const config = { matcher: ["/((?!_next|favicon.ico|sign-in|api/cron).*)"] };

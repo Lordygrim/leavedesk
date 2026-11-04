@@ -1,5 +1,5 @@
 const CHIPS: Record<string, [string, string]> = {
-  PENDING: ["bg-peb text-pet", "Pending"], APPROVED: ["bg-okb text-okt", "Approved"], DECLINED: ["bg-rjb text-rjt", "Declined"],
+  PENDING: ["bg-peb text-pet", "Pending"], APPROVED: ["bg-okb text-okt", "Approved"], DECLINED: ["bg-rjb text-rjt", "Declined"], CANCELLED: ["bg-peb text-pet", "Cancelled"],
   ON_LEAVE: ["bg-olb text-olt", "On leave"], DUE: ["bg-peb text-pet", "Due back today"], OVERDUE: ["bg-odb text-odt", "Overdue"],
 };
 export function Chip({ s }: { s: string }) {

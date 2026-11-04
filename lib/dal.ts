@@ -5,7 +5,9 @@ import { prisma } from "./db";
 import { getSessionUserId } from "./session";
 export const getUser = cache(async () => {
   const id = await getSessionUserId();
-  return id ? prisma.user.findUnique({ where: { id }, include: { role: true } }) : null;
+  if (!id) return null;
+  const u = await prisma.user.findUnique({ where: { id }, include: { role: true } });
+  return u?.active ? u : null; // deactivated people are signed out immediately
 });
 export async function requireUser() {
   const u = await getUser();

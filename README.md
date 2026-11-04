@@ -47,6 +47,13 @@ npm run dev
 - Moving to Postgres: change `provider` to `postgresql` in `prisma/schema.prisma`, set `DATABASE_URL`, run `npx prisma db push`.
 - Before deploying, set a new long random `AUTH_SECRET`.
 
+## Features added in this version
+
+- **Employee:** Calendar (month view with your leave, team leave and public holidays), Profile (details and change password), cancel a pending request, unread count and "mark all as read" on Alerts.
+- **HR dashboard:** Team calendar (4-week timeline of who is out, pending and overdue), Policies (edit days a year per leave type, add leave types, add and remove public holidays), Employees (add people, change role and department, deactivate, set a temporary password).
+- **Email:** every in-app notification is also emailed when `RESEND_API_KEY` (and optionally `MAIL_FROM`) is set in `.env`. Without a key, emails are only printed in the terminal. Create a free key at resend.com and verify your sending domain.
+- **Scheduled reminders:** `GET /api/cron/reminders` reminds people the day before they are due back and alerts admins about overdue returns, once each. It needs `CRON_SECRET`. `vercel.json` runs it daily at 08:00 Nairobi time on Vercel. To test locally: `curl -H "Authorization: Bearer YOUR_CRON_SECRET" http://localhost:3000/api/cron/reminders`.
+
 ## Not built yet
 
-Team calendar, employee calendar, policy editing (leave types and holidays), email sending, scheduled reminders, user management, password reset.
+Forgot-password by email, approval by a supervising partner (reporting lines), editing admin access from the UI, attachments (such as sick notes).

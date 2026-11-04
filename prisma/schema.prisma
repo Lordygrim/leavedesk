@@ -15,6 +15,7 @@ model User {
   roleId        String
   role          Role           @relation(fields: [roleId], references: [id])
   department    String         // department or practice area
+  active        Boolean        @default(true)
   requests      LeaveRequest[]
   notifications Notification[]
 }
@@ -66,6 +67,7 @@ model Notification {
   user      User     @relation(fields: [userId], references: [id])
   title     String
   body      String
+  read      Boolean  @default(false)
   createdAt DateTime @default(now())
 }
 
