@@ -18,6 +18,13 @@ npm run dev
 
 3. Open http://localhost:3000
 
+## Updating from a newer zip
+
+1. Stop the server (Ctrl+C in the VS Code terminal).
+2. Extract the new zip into a temporary folder, then copy everything inside its `leavedesk` folder over your project folder and choose Replace. Your database (`prisma/dev.db`) is not in the zip, so your data stays.
+3. In the VS Code terminal run `rm -rf .next`, then `npm install`, then `npm run dev`.
+4. Only if the release notes say the database changed: `npx prisma db push --force-reset` then `npx prisma db seed` (this wipes and re-creates the sample data).
+
 ## Demo accounts (password for all: `Password123!`)
 
 - Admins: michaelsila@company.co.ke (Managing Partner) and susan.wambui@company.co.ke (HR Manager)

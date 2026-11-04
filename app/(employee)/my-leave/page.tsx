@@ -9,7 +9,7 @@ export default async function MyLeave() {
     <>
       <h1 className="text-3xl font-medium">My leave</h1>
       {reqs.length === 0 && <p className="text-sm text-mut">No requests yet.</p>}
-      {reqs.map((r) => (
+      <div className="grid items-start gap-4 lg:grid-cols-2">{reqs.map((r) => (
         <div className="rounded-2xl border border-line bg-card p-5 flex items-center justify-between gap-4" key={r.id}>
           <div>
             <b style={{ fontWeight: 500 }}>{fmt(r.startDate)} to {fmt(r.endDate)}</b>
@@ -19,7 +19,7 @@ export default async function MyLeave() {
           </div>
           <Chip s={r.status} />
         </div>
-      ))}
+      ))}</div>
     </>
   );
 }
