@@ -48,7 +48,7 @@ export async function submitRequest(fd: FormData) {
 export async function decideRequest(fd: FormData) {
   const admin = await requireAdmin();
   const id = String(fd.get("id")), decision = String(fd.get("decision")), reason = String(fd.get("reason") ?? "").trim();
-  if (decision !== "APPROVED" && decision !== "DECLINED") return;
+  if (decision !== "APPROVED" && decision !== "DECLINED") return redirect(`/admin/requests/${id}?error=invalid`);
   const r = await prisma.leaveRequest.findUnique({ where: { id }, include: { user: true, type: true } });
   if (!r || r.status !== "PENDING") return redirect("/admin/requests");
   const back = `/admin/requests/${id}?error=`;
@@ -57,12 +57,14 @@ export async function decideRequest(fd: FormData) {
   if (decision === "APPROVED" && r.workingDays > (await balance(r.userId, r.typeId)).left) return redirect(back + "balance");
   await prisma.leaveRequest.update({ where: { id }, data: { status: decision, decisionReason: reason || null, decidedBy: admin.name, decidedAt: new Date() } });
   const ok = decision === "APPROVED";
+  try {
   await notify(r.userId, ok ? "Leave approved" : "Leave declined", ok
     ? `Your ${r.type.name} leave, ${fmt(r.startDate)} to ${fmt(r.endDate)}, was approved. Back at work ${fmtDay(r.reportBackDate)}.`
     : `Your request for ${fmt(r.startDate)} to ${fmt(r.endDate)} was declined: ${reason}`);
   await audit(admin.name, ok ? "Approved request" : "Declined request", `${r.user.name}, ${r.startDate} to ${r.endDate}`);
+  } catch (e) { console.error("The decision was saved, but notifying the employee failed:", e); }
   revalidatePath("/admin");
-  return redirect("/admin/requests");
+  return redirect(`/admin/requests?done=${ok ? "approved" : "declined"}`);
 }
 
 export async function recordReturn(fd: FormData) {

@@ -6,7 +6,7 @@ import { balance } from "@/lib/leave";
 import { decideRequest } from "@/lib/actions";
 import { fmt, fmtDay } from "@/lib/dates";
 import { Chip } from "@/components/ui";
-const ERR: Record<string, string> = { self: "You can't decide your own request. Ask another HR admin.", reason: "Add a reason to decline.", balance: "The employee doesn't have enough days left." };
+const ERR: Record<string, string> = { self: "You can't decide your own request. Ask another HR admin.", reason: "Add a reason to decline.", balance: "The employee doesn't have enough days left.", invalid: "Something went wrong. Please try again." };
 export default async function Review({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string }> }) {
   await requireAdmin();
   const { id } = await params;
@@ -26,12 +26,22 @@ export default async function Review({ params, searchParams }: { params: Promise
         {r.note && <div className="text-sm text-mut">Note: {r.note}</div>}
       </div>
       {r.status === "PENDING" && (
-        <form action={decideRequest} className="rounded-2xl border border-line bg-card p-5 flex flex-col gap-4">
-          <input type="hidden" name="id" value={r.id} />
-          <label className="flex flex-col gap-1.5 text-sm text-mut">Reason (required to decline)<input className="rounded-xl border border-fld bg-card text-ink h-12 w-full px-3.5 text-base" name="reason" /></label>
-          <div className="flex gap-2"><button className="inline-flex items-center justify-center rounded-xl font-medium no-underline cursor-pointer h-12 px-5 text-base bg-ac text-act" name="decision" value="APPROVED">Approve</button><button className="inline-flex items-center justify-center rounded-xl font-medium no-underline cursor-pointer h-12 px-5 text-base border border-ac bg-transparent text-ac" name="decision" value="DECLINED">Decline</button></div>
-          <span className="text-sm text-mut">The employee is notified in the app.</span>
-        </form>
+        <div className="grid items-start gap-4 lg:grid-cols-2">
+          <form action={decideRequest} className="flex flex-col gap-4 rounded-2xl border border-line bg-card p-5">
+            <input type="hidden" name="id" value={r.id} />
+            <input type="hidden" name="decision" value="APPROVED" />
+            <h2 className="text-base font-medium">Approve</h2>
+            <p className="text-sm text-mut">The employee is notified straight away, with their back-at-work date.</p>
+            <button className="inline-flex h-12 cursor-pointer items-center justify-center self-start rounded-xl bg-ac px-8 text-base font-medium text-act">Approve request</button>
+          </form>
+          <form action={decideRequest} className="flex flex-col gap-4 rounded-2xl border border-line bg-card p-5">
+            <input type="hidden" name="id" value={r.id} />
+            <input type="hidden" name="decision" value="DECLINED" />
+            <h2 className="text-base font-medium">Decline</h2>
+            <label className="flex flex-col gap-1.5 text-sm text-mut">Reason for declining<input className="rounded-xl border border-fld bg-card text-ink h-12 w-full px-3.5 text-base" name="reason" required /></label>
+            <button className="inline-flex h-12 cursor-pointer items-center justify-center self-start rounded-xl border border-ac bg-transparent px-8 text-base font-medium text-ac">Decline request</button>
+          </form>
+        </div>
       )}
     </>
   );
