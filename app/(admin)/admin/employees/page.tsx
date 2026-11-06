@@ -4,9 +4,9 @@ import { requireAdmin } from "@/lib/dal";
 import { balance } from "@/lib/leave";
 import { addEmployee } from "@/lib/actions";
 import { Ring } from "@/components/ui";
-import { btn, card, err, field, ghostSm, h1, lbl, muted, tbl } from "@/components/styles";
+import { btn, card, err, field, ghostSm, h1, lbl, muted, note, tbl } from "@/components/styles";
 const ERR: Record<string, string> = { invalid: "Fill in every field with valid values.", short: "The temporary password must be at least 8 characters.", exists: "Someone with that email already exists." };
-export default async function Employees({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+export default async function Employees({ searchParams }: { searchParams: Promise<{ error?: string; deleted?: string }> }) {
   await requireAdmin();
   const sp = await searchParams;
   const annual = await prisma.leaveType.findUniqueOrThrow({ where: { name: "Annual" } });
@@ -17,6 +17,7 @@ export default async function Employees({ searchParams }: { searchParams: Promis
     <>
       <h1 className={h1}>Employees and balances</h1>
       {sp.error && <div className={err}>{ERR[sp.error]}</div>}
+      {sp.deleted && <div className={note}>Employee deleted.</div>}
       <details className={`${card} p-5`} open={!!sp.error}>
         <summary className="cursor-pointer font-medium">Add employee</summary>
         <form action={addEmployee} className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">

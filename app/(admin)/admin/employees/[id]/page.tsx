@@ -3,10 +3,12 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/dal";
 import { updateEmployee } from "@/lib/actions";
-import { btn, card, err, field, h1, lbl, muted } from "@/components/styles";
+import { deleteEmployee } from "@/lib/delete-employee";
+import { btn, card, err, field, ghostSm, h1, lbl, muted } from "@/components/styles";
 const ERR: Record<string, string> = {
   invalid: "Fill in the role and department.", short: "The new password must be at least 8 characters.",
   self: "You can't deactivate yourself or remove your own admin access.", lastadmin: "At least one active admin is required.",
+  selfdelete: "You can't delete your own account.", confirm: "The name you typed does not match, so nothing was deleted.",
 };
 export default async function EditEmployee({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string }> }) {
   await requireAdmin();
@@ -29,6 +31,16 @@ export default async function EditEmployee({ params, searchParams }: { params: P
         <label className="flex items-center gap-3 text-sm"><input type="checkbox" name="active" defaultChecked={u.active} className="h-4 w-4" />Active (untick to stop this person signing in)</label>
         <button className={`${btn} self-start`}>Save changes</button>
       </form>
+      <section className="flex max-w-xl flex-col gap-4 rounded-2xl border border-rjt p-6">
+        <h2 className="text-base font-medium text-rjt">Delete employee</h2>
+        <p className="text-sm text-mut">Use this when someone has left the firm. It permanently removes {u.name}, their leave requests and their notifications. The audit trail keeps a record that the deletion happened. If you only want to stop them signing in, untick Active above instead.</p>
+        <a className={`${ghostSm} self-start`} href="/admin/reports/export">Export the leave report first (CSV)</a>
+        <form action={deleteEmployee} className="flex flex-col gap-4">
+          <input type="hidden" name="id" value={u.id} />
+          <label className={lbl}>Type &quot;{u.name}&quot; to confirm<input className={field} name="confirm" autoComplete="off" required /></label>
+          <button className="inline-flex h-12 cursor-pointer items-center justify-center self-start rounded-xl border border-rjt bg-transparent px-8 text-base font-medium text-rjt hover:bg-rjt hover:text-bg">Delete permanently</button>
+        </form>
+      </section>
     </>
   );
 }
