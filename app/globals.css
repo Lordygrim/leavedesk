@@ -23,9 +23,8 @@
   --font-sans: var(--font-dm), system-ui, sans-serif;
 }
 
-/* Light theme is the default; dark Nordic theme follows the system or the toggle. */
+/* Light is the default. Dark Nordic applies only when the saved choice (a cookie, see ThemeToggle) says so. */
 :root { --bg:#F7F6F2;--card:#fff;--line:#E6E3DB;--fld:#D5D1C6;--ink:#1F2A37;--mut:#5B6670;--ac:#2B5B84;--act:#fff;--sbg:#F7F6F2;--track:#E6E3DB;--okb:#E3EEE6;--okt:#24543A;--odb:#F6E7B4;--odt:#5C4500;--peb:#EEEAE0;--pet:#3D4650;--olb:#DCE8F2;--olt:#1D4466;--rjb:#F4DAD3;--rjt:#7A2E1C; }
 [data-theme="dark"] { --bg:#2E3440;--card:#3B4252;--line:#4C566A;--fld:#5E6B82;--ink:#ECEFF4;--mut:#B8C2D4;--ac:#88C0D0;--act:#2E3440;--sbg:#272C36;--track:#4C566A;--okb:#35473C;--okt:#BFE0A8;--odb:#54492F;--odt:#EBCB8B;--peb:#434C5E;--pet:#E5E9F0;--olb:#3A5568;--olt:#A9D6E5;--rjb:#5A3A40;--rjt:#F0A8B0; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#2E3440;--card:#3B4252;--line:#4C566A;--fld:#5E6B82;--ink:#ECEFF4;--mut:#B8C2D4;--ac:#88C0D0;--act:#2E3440;--sbg:#272C36;--track:#4C566A;--okb:#35473C;--okt:#BFE0A8;--odb:#54492F;--odt:#EBCB8B;--peb:#434C5E;--pet:#E5E9F0;--olb:#3A5568;--olt:#A9D6E5;--rjb:#5A3A40;--rjt:#F0A8B0; } }
 
 :focus-visible { outline: 2px solid var(--ac); outline-offset: 2px; }

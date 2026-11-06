@@ -1,18 +1,14 @@
 "use client";
 import { useEffect, useState } from "react";
+import { ghostSm } from "./styles";
 export default function ThemeToggle() {
   const [dark, setDark] = useState(false);
-  useEffect(() => {
-    const saved = localStorage.getItem("theme");
-    const d = saved ? saved === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
-    document.documentElement.dataset.theme = d ? "dark" : "light";
-    setDark(d);
-  }, []);
+  useEffect(() => { setDark(document.documentElement.dataset.theme === "dark"); }, []);
   function toggle() {
-    const n = dark ? "light" : "dark";
-    document.documentElement.dataset.theme = n;
-    localStorage.setItem("theme", n);
+    const next = dark ? "light" : "dark";
+    document.documentElement.dataset.theme = next;
+    document.cookie = `theme=${next}; path=/; max-age=31536000; samesite=lax`;
     setDark(!dark);
   }
-  return <button type="button" className="inline-flex items-center justify-center rounded-xl font-medium no-underline cursor-pointer h-9 px-3.5 text-sm border border-ac bg-transparent text-ac" onClick={toggle}>{dark ? "Light mode" : "Dark mode"}</button>;
+  return <button type="button" className={ghostSm} onClick={toggle}>{dark ? "Light mode" : "Dark mode"}</button>;
 }
