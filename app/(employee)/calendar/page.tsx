@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/dal";
-import { holidays } from "@/lib/leave";
-import { fmt, isWorkday, todayNairobi } from "@/lib/dates";
+import { offFor } from "@/lib/leave";
+import { fmt, inMd, isWorkday, todayNairobi } from "@/lib/dates";
 import { monthGrid, monthLabel, shiftMonth } from "@/lib/calendar";
 import { card, ghostSm, h1, h2, muted } from "@/components/styles";
 export default async function Calendar({ searchParams }: { searchParams: Promise<{ m?: string }> }) {
@@ -12,9 +12,13 @@ export default async function Calendar({ searchParams }: { searchParams: Promise
   const ym = /^\d{4}-\d{2}$/.test(sp.m ?? "") ? (sp.m as string) : today.slice(0, 7);
   const grid = monthGrid(ym);
   const from = grid[0], to = grid[grid.length - 1];
-  const holMap = new Map<string, string>((await prisma.holiday.findMany({ where: { date: { gte: from, lte: to } } })).map((h) => [h.date, h.name]));
-  const hset = await holidays();
-  const reqs = await prisma.leaveRequest.findMany({ where: { status: { in: ["APPROVED", "PENDING"] }, startDate: { lte: to }, endDate: { gte: from } }, include: { user: { include: { role: true } } }, orderBy: { startDate: "asc" } });
+  const holMap = new Map<string, string>((await prisma.holiday.findMany({ where: { orgId: u.orgId, date: { gte: from, lte: to } } })).map((h) => [h.date, h.name]));
+  const closures = await prisma.closure.findMany({ where: { orgId: u.orgId } });
+  const off = await offFor(u.orgId);
+  const reqs = await prisma.leaveRequest.findMany({
+    where: { user: { orgId: u.orgId }, status: { in: ["APPROVED", "PENDING"] }, startDate: { lte: to }, endDate: { gte: from } },
+    include: { user: { include: { role: true } } }, orderBy: { startDate: "asc" },
+  });
   const visible = reqs.filter((r) => r.status === "APPROVED" || r.userId === u.id); // colleagues' pending requests stay private
   const team = visible.filter((r) => r.userId !== u.id && r.status === "APPROVED" && r.startDate.slice(0, 7) <= ym && r.endDate.slice(0, 7) >= ym);
   return (
@@ -35,8 +39,8 @@ export default async function Calendar({ searchParams }: { searchParams: Promise
             {grid.map((d) => {
               const inMonth = d.startsWith(ym);
               const mine = visible.find((r) => r.userId === u.id && r.startDate <= d && r.endDate >= d);
-              const out = isWorkday(d, hset) ? visible.filter((r) => r.userId !== u.id && r.status === "APPROVED" && r.startDate <= d && r.endDate >= d).length : 0;
-              const hol = holMap.get(d);
+              const out = isWorkday(d, off) ? visible.filter((r) => r.userId !== u.id && r.status === "APPROVED" && r.startDate <= d && r.endDate >= d).length : 0;
+              const hol = holMap.get(d) ?? closures.find((c) => inMd(d.slice(5), c.startMd, c.endMd))?.name;
               return (
                 <div key={d} className={`min-h-24 rounded-xl border p-2 text-sm ${inMonth ? "border-line" : "border-transparent opacity-50"} ${mine ? (mine.status === "APPROVED" ? "bg-olb text-olt" : "bg-peb text-pet") : "bg-card"} ${d === today ? "ring-2 ring-ac" : ""}`}>
                   <div className="font-medium">{Number(d.slice(8))}</div>

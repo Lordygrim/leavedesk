@@ -7,33 +7,78 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// One row per organization (law firm, school, company...). Everything else belongs to one organization.
+model Organization {
+  id         String      @id @default(cuid())
+  name       String
+  q1Days     Int         @default(6) // annual leave days people may take Jan to Mar
+  q2Days     Int         @default(5) // Apr to Jun
+  q3Days     Int         @default(5) // Jul to Sep
+  q4Days     Int         @default(5) // Oct to Dec
+  createdAt  DateTime    @default(now())
+  users      User[]
+  roles      Role[]
+  leaveTypes LeaveType[]
+  holidays   Holiday[]
+  closures   Closure[]
+  audits     AuditLog[]
+}
+
 model User {
   id            String         @id @default(cuid())
+  orgId         String
+  org           Organization   @relation(fields: [orgId], references: [id])
   name          String
   email         String         @unique
   passwordHash  String
   roleId        String
   role          Role           @relation(fields: [roleId], references: [id])
-  department    String         // department or practice area
+  department    String
   active        Boolean        @default(true)
+  googleId      String?        @unique        // set when the person signs in with Google
+  hasPassword   Boolean        @default(true) // false for people who only ever sign in with Google
+  isOwner       Boolean        @default(false) // created the organization; always an admin
+  isAdmin       Boolean        @default(false) // admin access granted by the owner or another admin
+  managerId     String?                       // who approves this person's leave (a supervising partner or manager)
+  manager       User?          @relation("Reports", fields: [managerId], references: [id])
+  reports       User[]         @relation("Reports")
   requests      LeaveRequest[]
   notifications Notification[]
+  resets        PasswordReset[]
 }
 
-// Law firm roles. The role name is the person's title; isAdmin decides who can open the HR dashboard.
+// One row per "forgot password" email. Only a hash of the token is stored; each link works once and expires.
+model PasswordReset {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  tokenHash String    @unique
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+}
+
+// Job titles for one organization. A role whose name is HR (or Human Resources) gives its people admin access automatically.
 model Role {
-  id          String  @id @default(cuid())
-  name        String  @unique
-  isAdmin     Boolean @default(false)
-  selfApprove Boolean @default(false) // the owner's own leave is approved automatically
+  id          String       @id @default(cuid())
+  orgId       String
+  org         Organization @relation(fields: [orgId], references: [id])
+  name        String
+  grantsAdmin Boolean      @default(false)
   users       User[]
+
+  @@unique([orgId, name])
 }
 
 model LeaveType {
   id          String         @id @default(cuid())
-  name        String         @unique
+  orgId       String
+  org         Organization   @relation(fields: [orgId], references: [id])
+  name        String
   daysPerYear Int
+  quarterly   Boolean        @default(false) // true: days come from the organization's quarterly allowances
   requests    LeaveRequest[]
+
+  @@unique([orgId, name])
 }
 
 model LeaveRequest {
@@ -46,7 +91,7 @@ model LeaveRequest {
   endDate          String
   workingDays      Int
   reportBackDate   String
-  status           String    @default("PENDING") // PENDING, APPROVED, DECLINED
+  status           String    @default("PENDING") // PENDING, APPROVED, DECLINED, CANCELLED
   note             String?
   decisionReason   String?
   decidedBy        String?
@@ -56,9 +101,23 @@ model LeaveRequest {
 }
 
 model Holiday {
-  id   String @id @default(cuid())
-  date String @unique
-  name String
+  id    String       @id @default(cuid())
+  orgId String
+  org   Organization @relation(fields: [orgId], references: [id])
+  date  String
+  name  String
+
+  @@unique([orgId, date])
+}
+
+// Mandatory leave or office closure that repeats every year, e.g. 22 Dec to 11 Jan. Stored as MM-DD.
+model Closure {
+  id      String       @id @default(cuid())
+  orgId   String
+  org     Organization @relation(fields: [orgId], references: [id])
+  name    String
+  startMd String
+  endMd   String
 }
 
 model Notification {
@@ -72,9 +131,11 @@ model Notification {
 }
 
 model AuditLog {
-  id        String   @id @default(cuid())
+  id        String       @id @default(cuid())
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id])
   actor     String
   action    String
   detail    String
-  createdAt DateTime @default(now())
+  createdAt DateTime     @default(now())
 }

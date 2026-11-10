@@ -1,6 +1,7 @@
-// Daily job: reminds people the day before they are due back, and alerts admins about overdue returns.
+// Daily job: reminds people the day before they are due back, and alerts each organization's admins about overdue returns.
 // Protected by CRON_SECRET. On Vercel, set CRON_SECRET in the project settings and it sends the header for you.
 import { prisma } from "@/lib/db";
+import { adminWhere } from "@/lib/dal";
 import { notifyOnce } from "@/lib/leave";
 import { add, fmtDay, todayNairobi } from "@/lib/dates";
 export async function GET(req: Request) {
@@ -12,9 +13,10 @@ export async function GET(req: Request) {
   for (const r of soon)
     if (await notifyOnce(r.userId, "Return reminder", `You are due back at work tomorrow, ${fmtDay(r.reportBackDate)}.`)) reminders++;
   const late = await prisma.leaveRequest.findMany({ where: { status: "APPROVED", actualReturnDate: null, reportBackDate: { lt: today } }, include: { user: true } });
-  const admins = await prisma.user.findMany({ where: { active: true, role: { isAdmin: true } } });
-  for (const r of late)
+  for (const r of late) {
+    const admins = await prisma.user.findMany({ where: { orgId: r.user.orgId, active: true, ...adminWhere } });
     for (const a of admins)
       if (await notifyOnce(a.id, "Overdue return", `${r.user.name} was due back ${fmtDay(r.reportBackDate)} and is not recorded as returned.`)) overdue++;
+  }
   return Response.json({ reminders, overdue });
 }

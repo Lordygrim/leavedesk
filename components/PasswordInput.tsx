@@ -1,7 +1,6 @@
 "use client";
 import { useState } from "react";
 import { field } from "./styles";
-
 const Eye = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
@@ -13,21 +12,13 @@ const EyeOff = () => (
     <line x1="1" y1="1" x2="23" y2="23" />
   </svg>
 );
-
 export default function PasswordInput({ name, minLength, autoComplete }: { name: string; minLength?: number; autoComplete?: string }) {
   const [show, setShow] = useState(false);
   return (
     <div className="relative">
       <input className={`${field} pr-12`} type={show ? "text" : "password"} name={name} minLength={minLength} autoComplete={autoComplete} required />
-      <button
-        type="button"
-        onClick={() => setShow(!show)}
-        aria-label={show ? "Hide password" : "Show password"}
-        aria-pressed={show}
-        className="absolute inset-y-0 right-0 flex w-12 cursor-pointer items-center justify-center text-mut hover:text-ac"
-      >
-        {show ? <EyeOff /> : <Eye />}
-      </button>
+      <button type="button" onClick={() => setShow(!show)} aria-label={show ? "Hide password" : "Show password"} aria-pressed={show}
+        className="absolute inset-y-0 right-0 flex w-12 cursor-pointer items-center justify-center text-mut hover:text-ac">{show ? <EyeOff /> : <Eye />}</button>
     </div>
   );
 }

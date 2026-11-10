@@ -8,7 +8,7 @@ export function Chip({ s }: { s: string }) {
 }
 export function Ring({ left, total, size = 120 }: { left: number; total: number; size?: number }) {
   const r = size * 0.45, w = size / 12, C = 2 * Math.PI * r, h = size / 2;
-  const dash = C * Math.max(0, Math.min(1, left / total));
+  const dash = total > 0 ? C * Math.max(0, Math.min(1, left / total)) : 0;
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label={`${left} of ${total} days left`}>
       <circle cx={h} cy={h} r={r} fill="none" stroke="var(--track)" strokeWidth={w} />

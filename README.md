@@ -1,13 +1,13 @@
 # LeaveDesk
 
-One Next.js app with two role-based areas: the **employee app** (`/home`, `/request`, `/my-leave`, `/alerts`) and the **HR dashboard** (`/admin/...`). Employees can only open the app. HR admins can open both.
+A leave management app for organizations (law firms, schools, companies). Every organization signs up on its own, has its own people, roles, leave rules and holidays, and cannot see anyone else's data.
 
-Stack: Next.js 15 (App Router) + TypeScript, Prisma + SQLite (zero setup), cookie sessions (jose + bcryptjs), Tailwind CSS v4 with a light theme and a dark Nordic theme (colors are CSS variables mapped to Tailwind tokens in `app/globals.css`).
+Stack: Next.js 15 (App Router) + TypeScript, Tailwind CSS v4, Prisma + SQLite (zero setup), cookie sessions (jose + bcryptjs).
 
 ## Run it in VS Code
 
-1. Install Node.js 20 or newer (https://nodejs.org), then open this folder in VS Code (File > Open Folder).
-2. Open the terminal (Terminal > New Terminal) and run:
+1. Install Node.js 20 or newer, then open this folder in VS Code (File > Open Folder).
+2. In the terminal (Terminal > New Terminal):
 
 ```
 npm install
@@ -18,42 +18,75 @@ npm run dev
 
 3. Open http://localhost:3000
 
-## Updating from a newer zip
+`--force-reset` wipes the database. Use it for a fresh start or after a version that changed the database structure.
 
-1. Stop the server (Ctrl+C in the VS Code terminal).
-2. Extract the new zip into a temporary folder, then copy everything inside its `leavedesk` folder over your project folder and choose Replace. Your database (`prisma/dev.db`) is not in the zip, so your data stays.
-3. In the VS Code terminal run `rm -rf .next`, then `npm install`, then `npm run dev`.
-4. Only if the release notes say the database changed: `npx prisma db push --force-reset` then `npx prisma db seed` (this wipes and re-creates the sample data).
+## Demo organization: "Our Law Firm" (password for everyone: `Password123!`)
 
-## Demo accounts (password for all: `Password123!`)
+| Person | Role | Access |
+|---|---|---|
+| H. Gichuki (h.gichuki@company.co.ke) | Partner | Owner and admin |
+| Loise Mwai (loise.mwai@company.co.ke) | Associate | Admin |
+| Grace Mincha (grace.mincha@company.co.ke) | Associate | Employee |
+| Caesar Kiune (caesar.kiune@company.co.ke) | Litigation Clerk | Employee |
+| Brian Mulama (brian.mulama@company.co.ke) | Conveyancing Clerk | Employee |
+| Esther Njoki (esther.njoki@company.co.ke) | Conveyancing & Dispatch | Employee |
+| Karen Wachira (karen.wachira@company.co.ke) | Dispatch & Office Admin | Employee |
+| Sylvia Maina (sylvia.maina@company.co.ke) | Receptionist | Employee |
 
-- Admins: michaelsila@company.co.ke (Managing Partner) and susan.wambui@company.co.ke (HR Manager)
-- Employee: michaelmuoki@company.co.ke (Associate). Other staff: daniel.mutua, faith.chebet, kevin.kamau, joy.achieng, peter.mwangi, brian.otieno @company.co.ke
+The email addresses are placeholders. Change them under Employees. To try a second organization, click "Create your organization" on the sign-in page.
 
-## Roles (law firm)
+## How it works
 
-- The `Role` table holds the firm's job titles: Managing Partner, HR Manager, Partner, Senior Associate, Associate, Pupil, Paralegal, Legal Secretary, Law Clerk, Receptionist, Accountant, Office Administrator. Edit it to match each client.
-- `isAdmin` on a role decides who can open the HR dashboard. By default that is the **Managing Partner (the owner)** and the **HR Manager**. Everyone else can only open the employee app.
-- `selfApprove` is true for the Managing Partner, so the owner's own leave is approved automatically. Everyone else, including other admins, needs another admin to approve their leave.
-- `middleware.ts` does a fast redirect. `lib/dal.ts` (`requireUser`, `requireAdmin`) is the real check, and it reads the role from the database on every request, so removing admin access takes effect immediately.
-- To give a role admin access, set `isAdmin` to true on it in Prisma Studio (`npx prisma studio`).
+**Organizations.** Signing up creates an organization and makes you its owner. Every record belongs to one organization, and every query is limited to the signed-in person's organization (`lib/dal.ts`).
+
+**Admin access.** A person is an admin if they are the owner, were given admin access by the owner or another admin (Employees > Edit > Admin access), or have a role named HR or Human Resources (automatic). The owner always keeps admin access, and at least one active admin must always remain. The owner's own leave is approved automatically; everyone else's, including other admins', is approved by another admin.
+
+**Off days (leave days per quarter).** Each organization sets how many annual leave days people may take in each quarter (Policies). This firm uses Q1: 0, Q2: 5, Q3: 5, Q4: 0. A request that would go over a quarter's allowance is refused. Annual leave per year is the total of the four quarters.
+
+**Mandatory leave.** Periods that repeat every year (this firm: 22 Dec to 11 Jan) are treated like public holidays: they are skipped when working days and back-at-work dates are calculated, and shown on the calendars.
+
+**Other settings (Policies).** Rename the organization, add leave types and set their days, add or remove public holidays, add or remove roles.
+
+## Google sign-in (optional)
+
+People can sign up and sign in with Google. Without these settings the Google buttons are simply hidden.
+
+1. Go to https://console.cloud.google.com, create a project, and set up the OAuth consent screen (Google Auth Platform).
+2. Create an OAuth client ID of type **Web application**.
+3. Under authorized redirect URIs add `http://localhost:3000/api/auth/google/callback` (and your real address when you deploy, for example `https://yourapp.com/api/auth/google/callback`). Google does not accept a plain IP address, so open the app at `http://localhost:3000` when testing.
+4. Add these lines to `.env`, then restart `npm run dev`:
+
+```
+GOOGLE_CLIENT_ID="...your client id..."
+GOOGLE_CLIENT_SECRET="...your client secret..."
+APP_URL="http://localhost:3000"
+```
+
+How it works: **Sign up with Google** on the sign-up page verifies the Google email, then asks for the organization details. **Continue with Google** on the sign-in page signs in anyone whose Google account matches their LeaveDesk account (by the linked Google account, or by the same email the first time). Employees added by an admin can use Google if the admin adds their Google email. A signed-in person can connect a Google account from Profile, even if its email differs from their work email.
+
+## Forgot password
+
+"Forgot your password?" on the sign-in page emails a one-time link (valid for one hour; only a hash of it is stored). Without `RESEND_API_KEY` the email is printed in the terminal where `npm run dev` runs, so you can copy the link while testing. To send real emails, set `RESEND_API_KEY` and `MAIL_FROM` in `.env` (Resend only sends to other people once you have verified your own domain), and set `APP_URL` to the address people use. People who signed up with Google can also use it to set a password.
+
+## Who approves leave
+
+Each person can have a supervisor ("Reports to", under Employees > Edit), for example a partner or manager. New requests notify the supervisor and the admins. Either can approve or decline, and whoever decides first settles it. Supervisors who are not admins get an **Approvals** page in the employee app (shown only to people who supervise someone). A person with no supervisor is approved by the admins. Nobody can decide their own request, and the owner's own leave is approved automatically.
+
+## Other features
+
+Employee: home with ring gauges, request leave (the note for HR is required), my leave with cancel, calendar, notifications, profile with password change and light/dark mode (remembered in a cookie).
+HR dashboard: who's on leave with record return, requests with approve or decline, team calendar, employees (add, edit, grant or rescind admin, delete), policies, reports with audit trail and CSV export.
+Email: set `RESEND_API_KEY` (and `MAIL_FROM`) in `.env` to send real emails. Without a key they are only printed in the terminal.
+Reminders: `GET /api/cron/reminders` (needs `CRON_SECRET`) reminds people the day before they return and alerts admins about overdue returns. `vercel.json` schedules it daily on Vercel. Test locally: `curl -H "Authorization: Bearer YOUR_CRON_SECRET" http://localhost:3000/api/cron/reminders`
 
 ## Notes
 
-- Dates are plain `YYYY-MM-DD` strings; "today" uses the Africa/Nairobi time zone.
-- Working days skip weekends and the `Holiday` table. The seed has 2026 fixed-date Kenyan holidays only. Add moveable holidays (such as Eid) and check the official gazette.
-- Approved leave stays flagged "Overdue" on the dashboard until HR records the actual return.
-- On Next.js 16, rename `middleware.ts` to `proxy.ts` and export `proxy` instead of `middleware`.
-- Moving to Postgres: change `provider` to `postgresql` in `prisma/schema.prisma`, set `DATABASE_URL`, run `npx prisma db push`.
-- Before deploying, set a new long random `AUTH_SECRET`.
-
-## Features added in this version
-
-- **Employee:** Calendar (month view with your leave, team leave and public holidays), Profile (details and change password), cancel a pending request, unread count and "mark all as read" on Alerts.
-- **HR dashboard:** Team calendar (4-week timeline of who is out, pending and overdue), Policies (edit days a year per leave type, add leave types, add and remove public holidays), Employees (add people, change role and department, deactivate, set a temporary password).
-- **Email:** every in-app notification is also emailed when `RESEND_API_KEY` (and optionally `MAIL_FROM`) is set in `.env`. Without a key, emails are only printed in the terminal. Create a free key at resend.com and verify your sending domain.
-- **Scheduled reminders:** `GET /api/cron/reminders` reminds people the day before they are due back and alerts admins about overdue returns, once each. It needs `CRON_SECRET`. `vercel.json` runs it daily at 08:00 Nairobi time on Vercel. To test locally: `curl -H "Authorization: Bearer YOUR_CRON_SECRET" http://localhost:3000/api/cron/reminders`.
+- Dates are plain `YYYY-MM-DD` strings; "today" uses Africa/Nairobi time.
+- New organizations start with fixed-date 2026 and part of 2027 Kenyan public holidays. Add the rest, and moveable ones, under Policies.
+- SQLite does not work on Vercel. Before deploying there, move to hosted Postgres: change `provider` in `prisma/schema.prisma`, set `DATABASE_URL`, run `npx prisma db push`.
+- On Next.js 16, rename `middleware.ts` to `proxy.ts` and export `proxy`.
+- Set a new long random `AUTH_SECRET` and `CRON_SECRET` before deploying.
 
 ## Not built yet
 
-Forgot-password by email, approval by a supervising partner (reporting lines), editing admin access from the UI, attachments (such as sick notes).
+Attachments such as sick notes, signing in to a specific organization when the same email is used in several, an owner-transfer option, approval chains with more than one step.
