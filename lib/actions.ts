@@ -10,7 +10,7 @@ import { createSession, destroySession } from "./session";
 import { audit, balance, notify, offFor, quarterAllowance, quarterUsage } from "./leave";
 import { isHrRole } from "./defaults";
 import { createOrganization } from "./org";
-import { getPendingGoogle } from "./google";
+import { getPendingAccount } from "./signup";
 import { baseUrl } from "./url";
 import { sendEmail } from "./mail";
 import { fmt, fmtDay, quarterDays, reportBack, todayNairobi, workingDays } from "./dates";
@@ -31,33 +31,45 @@ export async function signIn(fd: FormData) {
 }
 export async function signOut() { await destroySession(); redirect("/sign-in"); }
 
-export async function signUp(fd: FormData) {
-  const orgName = str(fd, "org"), name = str(fd, "name"), title = str(fd, "title"), email = str(fd, "email").toLowerCase(), pw = String(fd.get("password") ?? "");
-  const q = [1, 2, 3, 4].map((i) => Math.round(Number(fd.get(`q${i}`))));
+// Sign-up, step 1 (email): record the email and password, then email a link to confirm the address.
+export async function startSignUp(fd: FormData) {
+  const email = str(fd, "email").toLowerCase(), pw = String(fd.get("password") ?? ""), again = String(fd.get("again") ?? "");
   const E = (c: string) => `/sign-up?error=${c}`;
-  if (!orgName || !name || !title || !email.includes("@")) return redirect(E("invalid"));
+  if (!email.includes("@") || email.length > 200) return redirect(E("invalid"));
   if (pw.length < 8) return redirect(E("short"));
-  if (!q.every(days0to260)) return redirect(E("days"));
+  if (pw !== again) return redirect(E("mismatch"));
   if (await prisma.user.findUnique({ where: { email } })) return redirect(E("exists"));
-  const owner = await createOrganization({ orgName, name, title, email, passwordHash: await bcrypt.hash(pw, 10), hasPassword: true, googleId: null, q });
-  await createSession(owner.id, true);
-  return redirect("/admin/policies?welcome=1");
+  await prisma.pendingAccount.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 7 * 24 * 3600 * 1000) } } });
+  const existing = await prisma.pendingAccount.findUnique({ where: { email } });
+  let dev = "";
+  if (!existing || Date.now() - existing.createdAt.getTime() > 60_000) { // at most one email a minute per address
+    const token = randomBytes(32).toString("hex"), link = `${await baseUrl()}/sign-up/confirm?token=${token}`;
+    const data = { passwordHash: await bcrypt.hash(pw, 10), googleId: null, tokenHash: sha(token), confirmedAt: null, createdAt: new Date() };
+    await prisma.pendingAccount.upsert({ where: { email }, update: data, create: { email, ...data } });
+    await sendEmail(email, "Confirm your email for LeaveDesk", `Welcome to LeaveDesk!\n\nConfirm your email to continue creating your organization:\n${link}\n\nThe link works for 24 hours. If you did not sign up, you can ignore this email.`);
+    if (!process.env.RESEND_API_KEY) dev = `&devlink=${encodeURIComponent(link)}`; // development only: no email service is set up
+  }
+  return redirect(`/sign-up?sent=1${dev}`);
 }
 
-// Second step of "Sign up with Google": the Google email is already verified, so only the organization details are asked.
-export async function signUpWithGoogle(fd: FormData) {
-  const g = await getPendingGoogle();
-  if (!g) return redirect("/sign-up?error=expired");
+// Sign-up, step 2: the account is confirmed (by email link or Google), so create the organization and sign the owner in as admin.
+export async function completeSignUp(fd: FormData) {
+  const acc = await getPendingAccount();
+  if (!acc) return redirect("/sign-up?error=expired");
   const orgName = str(fd, "org"), name = str(fd, "name"), title = str(fd, "title");
   const q = [1, 2, 3, 4].map((i) => Math.round(Number(fd.get(`q${i}`))));
-  const E = (c: string) => `/sign-up?google=1&error=${c}`;
+  const E = (c: string) => `/sign-up/organization?error=${c}`;
   if (!orgName || !name || !title) return redirect(E("invalid"));
   if (!q.every(days0to260)) return redirect(E("days"));
-  if (await prisma.user.findUnique({ where: { email: g.email } })) return redirect("/sign-in?error=exists");
-  const owner = await createOrganization({ orgName, name, title, email: g.email, passwordHash: await bcrypt.hash(randomBytes(24).toString("hex"), 10), hasPassword: false, googleId: g.sub, q });
-  (await cookies()).delete("g_pending");
+  if (await prisma.user.findUnique({ where: { email: acc.email } })) return redirect("/sign-in?error=exists");
+  const owner = await createOrganization({
+    orgName, name, title, email: acc.email, q, googleId: acc.googleId, hasPassword: !!acc.passwordHash,
+    passwordHash: acc.passwordHash ?? (await bcrypt.hash(randomBytes(24).toString("hex"), 10)),
+  });
+  await prisma.pendingAccount.delete({ where: { id: acc.id } });
+  (await cookies()).delete("signup_pending");
   await createSession(owner.id, true);
-  return redirect("/admin/policies?welcome=1");
+  return redirect("/admin?welcome=1");
 }
 
 // ---------- employee actions ----------

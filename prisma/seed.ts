@@ -4,7 +4,7 @@ import { inMd, reportBack, workingDays } from "../lib/dates";
 import { DEFAULT_HOLIDAYS, OTHER_TYPES, isHrRole } from "../lib/defaults";
 const p = new PrismaClient();
 async function main() {
-  for (const m of [p.passwordReset, p.notification, p.auditLog, p.leaveRequest, p.user, p.role, p.leaveType, p.holiday, p.closure, p.organization] as any[]) await m.deleteMany();
+  for (const m of [p.pendingAccount, p.passwordReset, p.notification, p.auditLog, p.leaveRequest, p.user, p.role, p.leaveType, p.holiday, p.closure, p.organization] as any[]) await m.deleteMany();
   const hash = await bcrypt.hash("Password123!", 10);
   // H Gichuki & Company Advocates: 0 leave days in Q1, 5 in Q2, 5 in Q3, 0 in Q4 (mandatory leave 22 Dec to 11 Jan instead).
   const org = await p.organization.create({ data: { name: "H Gichuki & Company Advocates", q1Days: 0, q2Days: 5, q3Days: 5, q4Days: 0 } });

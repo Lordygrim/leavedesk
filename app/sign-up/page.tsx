@@ -1,59 +1,41 @@
 import Link from "next/link";
-import { signUp, signUpWithGoogle } from "@/lib/actions";
-import { getPendingGoogle, googleConfigured } from "@/lib/google";
+import { startSignUp } from "@/lib/actions";
+import GoogleButton from "@/components/GoogleButton";
 import PasswordInput from "@/components/PasswordInput";
-import { btn, err, field, ghostSm, h1, h2, lbl, muted, note } from "@/components/styles";
+import { btn, err, field, ghostSm, h1, lbl, muted, note } from "@/components/styles";
 const ERR: Record<string, string> = {
-  invalid: "Fill in every field with valid values.", short: "The password must be at least 8 characters.", days: "Leave days per quarter must be whole numbers from 0 to 260.",
-  exists: "Someone with that email already has an account.", expired: "Your Google sign-up expired. Please start again.",
+  invalid: "Enter a valid email address.", short: "The password must be at least 8 characters.", mismatch: "The two passwords don't match.",
+  exists: "An account already uses that email. Sign in instead.", expired: "Your sign-up session expired. Please start again.",
+  googlesetup: "Google sign-up is not set up yet. The person running the app needs to add the Google keys to .env (see the README) and restart.",
+  google: "Google sign-up did not work. Please try again.",
+  badlink: "That confirmation link is invalid or has expired. Please sign up again.",
 };
-function Quarters() {
-  return (
-    <>
-      <h2 className={`${h2} mt-2`}>Annual leave days people may take in each quarter</h2>
-      <p className={muted}>Use 0 for a quarter with no leave days. For example, a firm that closes over the festive season might use 0, 5, 5, 0. You can change this later under Policies.</p>
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        {["Q1 (Jan to Mar)", "Q2 (Apr to Jun)", "Q3 (Jul to Sep)", "Q4 (Oct to Dec)"].map((l, i) => (
-          <label key={l} className={lbl}>{l}<input className={field} type="number" min={0} max={260} name={`q${i + 1}`} defaultValue={[6, 5, 5, 5][i]} required /></label>
-        ))}
-      </div>
-    </>
-  );
-}
-export default async function SignUp({ searchParams }: { searchParams: Promise<{ error?: string; google?: string }> }) {
+export default async function SignUp({ searchParams }: { searchParams: Promise<{ error?: string; sent?: string; devlink?: string; why?: string }> }) {
   const sp = await searchParams;
-  const g = sp.google ? await getPendingGoogle() : null;
-  const bad = sp.error ? ERR[sp.error] : sp.google && !g ? ERR.expired : "";
   return (
-    <div className="mx-auto flex max-w-xl flex-col gap-4 p-4 pt-16">
+    <div className="mx-auto flex max-w-sm flex-col gap-4 p-4 pt-16">
       <b className="text-xl text-ac">LeaveDesk</b>
-      <h1 className={h1}>{g ? "Finish creating your organization" : "Create your organization"}</h1>
-      <p className={muted}>You become the owner, with full admin access. You can add people, give admin access to others and change everything below later.</p>
-      {bad && <div className={err}>{bad}</div>}
-      {g ? (
-        <form action={signUpWithGoogle} className="flex flex-col gap-4">
-          <div className={note}>Signed in with Google as {g.email}. You can sign in with Google next time.</div>
-          <label className={lbl}>Organization name<input className={field} name="org" required /></label>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className={lbl}>Your full name<input className={field} name="name" defaultValue={g.name} required /></label>
-            <label className={lbl}>Your job title (for example Managing Partner)<input className={field} name="title" required /></label>
-          </div>
-          <Quarters />
-          <button className={`${btn} self-start`}>Create organization</button>
-        </form>
+      <p className={muted}>Step 1 of 2: create your account</p>
+      <h1 className={h1}>Sign up</h1>
+      {sp.error && <div className={err}>{ERR[sp.error] ?? "Something went wrong."}</div>}
+      {sp.why && process.env.NODE_ENV !== "production" && <p className={muted}>Details (development only): {sp.why}</p>}
+      {sp.sent ? (
+        <div className="flex flex-col gap-3">
+          <div className={note}>Almost there. We sent a confirmation link to your email. Open it to continue and create your organization. It works for 24 hours.</div>
+          {sp.devlink && !process.env.RESEND_API_KEY && (
+            <p className={muted}>Development only: no email service is set up, so here is your link: <a className="break-all text-ac underline" href={sp.devlink}>confirm my email</a></p>
+          )}
+          <Link className={`${ghostSm} self-start`} href="/sign-up">Use a different email</Link>
+        </div>
       ) : (
         <>
-          {googleConfigured() && <a className={`${ghostSm} h-12 text-base`} href="/api/auth/google?intent=signup">Sign up with Google</a>}
-          <form action={signUp} className="flex flex-col gap-4">
-            <label className={lbl}>Organization name<input className={field} name="org" required /></label>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className={lbl}>Your full name<input className={field} name="name" required /></label>
-              <label className={lbl}>Your job title (for example Managing Partner)<input className={field} name="title" required /></label>
-            </div>
-            <label className={lbl}>Work email<input className={field} name="email" type="email" required /></label>
+          <GoogleButton href="/api/auth/google?intent=signup" label="Sign up with Google" />
+          <p className={`${muted} text-center`}>or sign up with your email</p>
+          <form action={startSignUp} className="flex flex-col gap-4">
+            <label className={lbl}>Email<input className={field} name="email" type="email" required /></label>
             <label className={lbl}>Password (min 8 characters)<PasswordInput name="password" minLength={8} autoComplete="new-password" /></label>
-            <Quarters />
-            <button className={`${btn} self-start`}>Create organization</button>
+            <label className={lbl}>Repeat password<PasswordInput name="again" autoComplete="new-password" /></label>
+            <button className={btn}>Create account</button>
           </form>
         </>
       )}

@@ -1,15 +1,16 @@
 import { isAdminUser, requireUser } from "@/lib/dal";
 import { changeEmail, changePassword, signOut } from "@/lib/actions";
-import { googleConfigured } from "@/lib/google";
 import PasswordInput from "@/components/PasswordInput";
 import ThemeToggle from "@/components/ThemeToggle";
 import { btn, card, err, field, ghostSm, h1, h2, lbl, muted, note } from "@/components/styles";
 const ERR: Record<string, string> = {
   wrong: "Your current password is wrong.", short: "The new password must be at least 8 characters.", mismatch: "The new passwords don't match.",
   email: "Enter a valid email address.", wrongemailpw: "Your password is wrong, so the email was not changed.", emailtaken: "Another person already uses that email.",
+  google: "Connecting Google did not work. Please try again.",
+  googlesetup: "Google sign-in is not set up yet. The person running the app needs to add the Google keys to .env.",
   googletaken: "That Google account is already connected to someone else.",
 };
-export default async function Profile({ searchParams }: { searchParams: Promise<{ error?: string; saved?: string; emailsaved?: string; linked?: string }> }) {
+export default async function Profile({ searchParams }: { searchParams: Promise<{ error?: string; saved?: string; emailsaved?: string; linked?: string; why?: string }> }) {
   const u = await requireUser();
   const sp = await searchParams;
   const rows: [string, string][] = [["Name", u.name], ["Email", u.email], ["Organization", u.org.name], ["Role", u.role.name], ["Department", u.department], ["Your leave is approved by", u.manager ? `${u.manager.name} or an admin` : "An admin"],
@@ -21,6 +22,7 @@ export default async function Profile({ searchParams }: { searchParams: Promise<
       {sp.emailsaved && <div className={note}>Your email was updated. Use it the next time you sign in.</div>}
       {sp.linked && <div className={note}>Your Google account is connected. You can now sign in with Google.</div>}
       {sp.error && !passwordErrors.includes(sp.error) && <div className={err}>{ERR[sp.error]}</div>}
+      {sp.why && process.env.NODE_ENV !== "production" && <p className={muted}>Details (development only): {sp.why}</p>}
       <div className="grid items-start gap-6 lg:grid-cols-2">
         <div className="flex flex-col gap-6">
           <div className={`${card} flex flex-col gap-3 p-6`}>
@@ -33,7 +35,7 @@ export default async function Profile({ searchParams }: { searchParams: Promise<
             {u.hasPassword && <label className={lbl}>Your password, to confirm<PasswordInput name="password" autoComplete="current-password" /></label>}
             <button className={`${btn} self-start`}>Save email</button>
           </form>
-          {googleConfigured() && (
+          {(
             <div className={`${card} flex flex-col gap-3 p-6`}>
               <h2 className={h2}>Google sign-in</h2>
               {u.googleId ? <p className={muted}>A Google account is connected. You can sign in with the Continue with Google button.</p> : (

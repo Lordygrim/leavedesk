@@ -47,9 +47,14 @@ The email addresses are placeholders. Change them under Employees. To try a seco
 
 **Other settings (Policies).** Rename the organization, add leave types and set their days, add or remove public holidays, add or remove roles.
 
+## Signing up (two steps)
+
+1. **Create an account** on `/sign-up`: use **Sign up with Google**, or enter an email and a password (typed twice). Email sign-ups get a confirmation link by email; Google sign-ups are confirmed straight away. Without `RESEND_API_KEY` the link is also shown on the page and printed in the terminal (development only).
+2. **Create your organization**: organization name, your name and job title, and the annual leave days per quarter. Saving creates the organization, makes you its owner and an admin, and takes you to the dashboard.
+
 ## Google sign-in (optional)
 
-People can sign up and sign in with Google. Without these settings the Google buttons are simply hidden.
+People can sign up and sign in with Google. The Google buttons are always shown. Until these settings are added, clicking one explains that Google is not set up yet.
 
 1. Go to https://console.cloud.google.com, create a project, and set up the OAuth consent screen (Google Auth Platform).
 2. Create an OAuth client ID of type **Web application**.
@@ -62,7 +67,7 @@ GOOGLE_CLIENT_SECRET="...your client secret..."
 APP_URL="http://localhost:3000"
 ```
 
-How it works: **Sign up with Google** on the sign-up page verifies the Google email, then asks for the organization details. **Continue with Google** on the sign-in page signs in anyone whose Google account matches their LeaveDesk account (by the linked Google account, or by the same email the first time). Employees added by an admin can use Google if the admin adds their Google email. A signed-in person can connect a Google account from Profile, even if its email differs from their work email.
+How it works: **Sign up with Google** confirms the Google email and goes on to create the organization. **Continue with Google** on the sign-in page signs in anyone whose Google account matches their LeaveDesk account (by the linked Google account, or by the same email the first time). Employees added by an admin can use Google if the admin adds their Google email. A signed-in person can connect a Google account from Profile, even if its email differs from their work email.
 
 ## Forgot password
 

@@ -120,6 +120,19 @@ model Closure {
   endMd   String
 }
 
+// A person who has started signing up but has not created their organization yet.
+// Email sign-ups wait here until the emailed link is clicked; Google sign-ups are confirmed straight away.
+model PendingAccount {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String?   // email sign-ups only
+  googleId     String?   // Google sign-ups only
+  name         String?
+  tokenHash    String?   @unique // hash of the emailed confirmation link
+  confirmedAt  DateTime?
+  createdAt    DateTime  @default(now())
+}
+
 model Notification {
   id        String   @id @default(cuid())
   userId    String

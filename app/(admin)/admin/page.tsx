@@ -3,9 +3,11 @@ import { requireAdmin } from "@/lib/dal";
 import { recordReturn } from "@/lib/actions";
 import { fmt, fmtDay, todayNairobi } from "@/lib/dates";
 import { Chip } from "@/components/ui";
-import { card, fieldSm, ghostSm, h1, h2, muted, tbl } from "@/components/styles";
-export default async function Admin() {
+import Link from "next/link";
+import { card, fieldSm, ghostSm, h1, h2, muted, note, tbl } from "@/components/styles";
+export default async function Admin({ searchParams }: { searchParams: Promise<{ welcome?: string }> }) {
   const admin = await requireAdmin();
+  const sp = await searchParams;
   const today = todayNairobi();
   const mine = { user: { orgId: admin.orgId } };
   const out = await prisma.leaveRequest.findMany({ where: { ...mine, status: "APPROVED", actualReturnDate: null, startDate: { lte: today } }, include: { user: { include: { role: true } } }, orderBy: { reportBackDate: "asc" } });
@@ -14,6 +16,7 @@ export default async function Admin() {
   const status = (back: string) => (back > today ? "ON_LEAVE" : back === today ? "DUE" : "OVERDUE");
   return (
     <>
+      {sp.welcome && <div className={note}>Welcome to LeaveDesk! You are the owner and an admin. Next, check <Link className="underline" href="/admin/policies">Policies</Link> (leave days, mandatory leave, holidays, roles), then add your people under <Link className="underline" href="/admin/employees">Employees</Link>.</div>}
       <h1 className={h1}>Who&apos;s on leave</h1>
       <p className={muted}>{out.length} out or due back · {pending} requests waiting for a decision</p>
       <div className={card}><table className={tbl}>
