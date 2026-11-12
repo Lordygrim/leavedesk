@@ -2,9 +2,11 @@ import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/dal";
 import { addClosure, addHoliday, addLeaveType, addRole, deleteClosure, deleteHoliday, deleteRole, updateLeaveType, updateOrganization } from "@/lib/actions";
 import { fmtDay, fmtMd } from "@/lib/dates";
+import { allowanceOf } from "@/lib/allowance";
+import AllowanceFields from "@/components/AllowanceFields";
 import { btnSm, card, err, field, fieldSm, ghostSm, h1, h2, lbl, muted, note, tbl } from "@/components/styles";
 const ERR: Record<string, string> = {
-  org: "Enter a name and whole numbers from 0 to 260 for each quarter.", closure: "Enter a name and both dates.", type: "Enter a leave type name and a number of days from 0 to 260.",
+  org: "Enter a name and whole numbers from 0 to 260 for each period.", closure: "Enter a name and both dates.", type: "Enter a leave type name and a number of days from 0 to 260.",
   typeexists: "That leave type already exists.", holiday: "Enter a date and a name for the holiday.", role: "Enter a role name.", roleexists: "That role already exists.",
   roleinuse: "That role still has people in it. Move them to another role first.",
 };
@@ -17,25 +19,19 @@ export default async function Policies({ searchParams }: { searchParams: Promise
   const hols = await prisma.holiday.findMany({ where: { orgId: org.id }, orderBy: { date: "asc" } });
   const roles = await prisma.role.findMany({ where: { orgId: org.id }, include: { _count: { select: { users: true } } }, orderBy: { name: "asc" } });
   const sec = `${card} flex flex-col gap-4 p-5`;
-  const qs = [org.q1Days, org.q2Days, org.q3Days, org.q4Days];
   return (
     <>
       <h1 className={h1}>Policies</h1>
-      {sp.welcome && <div className={note}>Welcome! Your organization is ready. Check your leave days per quarter, mandatory leave periods and public holidays below, then add your people under Employees.</div>}
+      {sp.welcome && <div className={note}>Welcome! Your organization is ready. Check your annual leave allowance, mandatory leave periods and public holidays below, then add your people under Employees.</div>}
       {sp.saved && <div className={note}>Saved.</div>}
       {sp.error && <div className={err}>{ERR[sp.error]}</div>}
       <div className="grid items-start gap-6 xl:grid-cols-2">
         <section className={sec}>
-          <h2 className={h2}>Organization and annual leave days</h2>
+          <h2 className={h2}>Organization and annual leave allowance</h2>
           <form action={updateOrganization} className="flex flex-col gap-4">
             <label className={lbl}>Organization name<input className={field} name="name" defaultValue={org.name} required /></label>
-            <p className={muted}>Annual leave days people may take in each quarter. Use 0 for no leave days in that quarter.</p>
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-              {["Q1 Jan to Mar", "Q2 Apr to Jun", "Q3 Jul to Sep", "Q4 Oct to Dec"].map((l, i) => (
-                <label key={l} className={lbl}>{l}<input className={field} type="number" min={0} max={260} name={`q${i + 1}`} defaultValue={qs[i]} required /></label>
-              ))}
-            </div>
-            <p className={muted}>That makes {qs.reduce((a, b) => a + b, 0)} annual leave days a year. Saving changes everyone&apos;s allowance straight away.</p>
+            <AllowanceFields initial={allowanceOf(org)} />
+            <p className={muted}>Saving changes everyone&apos;s allowance straight away. Days already taken stay counted.</p>
             <button className={`${btnSm} self-start`}>Save</button>
           </form>
         </section>
@@ -62,7 +58,7 @@ export default async function Policies({ searchParams }: { searchParams: Promise
           <table className={tbl}><tbody>
             {types.map((t) => (
               <tr key={t.id}><td>{t.name}</td><td>
-                {t.quarterly ? <span className={muted}>Set by the quarters above</span> : (
+                {t.quarterly ? <span className={muted}>Set by the allowance above</span> : (
                   <form action={updateLeaveType} className="flex gap-2"><input type="hidden" name="id" value={t.id} />
                     <input className={`${fieldSm} w-24`} type="number" name="days" min={0} max={260} defaultValue={t.daysPerYear} /><button className={ghostSm}>Save</button></form>
                 )}

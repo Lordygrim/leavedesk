@@ -7,7 +7,7 @@ async function main() {
   for (const m of [p.pendingAccount, p.passwordReset, p.notification, p.auditLog, p.leaveRequest, p.user, p.role, p.leaveType, p.holiday, p.closure, p.organization] as any[]) await m.deleteMany();
   const hash = await bcrypt.hash("Password123!", 10);
   // H Gichuki & Company Advocates: 0 leave days in Q1, 5 in Q2, 5 in Q3, 0 in Q4 (mandatory leave 22 Dec to 11 Jan instead).
-  const org = await p.organization.create({ data: { name: "H Gichuki & Company Advocates", q1Days: 0, q2Days: 5, q3Days: 5, q4Days: 0 } });
+  const org = await p.organization.create({ data: { name: "H Gichuki & Company Advocates", leavePeriod: "QUARTERLY", leaveRule: "WINDOW", periodDays: "0,5,5,0", q1Days: 0, q2Days: 5, q3Days: 5, q4Days: 0 } });
   const roleNames = ["Partner", "Associate", "Litigation Clerk", "Conveyancing Clerk", "Conveyancing & Dispatch", "Dispatch & Office Admin", "Receptionist"];
   const roles: Record<string, string> = {};
   for (const name of roleNames) roles[name] = (await p.role.create({ data: { orgId: org.id, name, grantsAdmin: isHrRole(name) } })).id;

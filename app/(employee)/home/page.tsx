@@ -4,7 +4,7 @@ import { requireUser } from "@/lib/dal";
 import { balance } from "@/lib/leave";
 import { fmt, fmtDay } from "@/lib/dates";
 import { Chip, Ring } from "@/components/ui";
-import { BalancesPanel, HolidaysPanel, QuartersPanel } from "@/components/panels";
+import { BalancesPanel, HolidaysPanel, AllowancePanel } from "@/components/panels";
 import { btnSm, card, h1, h2, muted, note } from "@/components/styles";
 export default async function Home({ searchParams }: { searchParams: Promise<{ sent?: string }> }) {
   const u = await requireUser();
@@ -38,7 +38,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ s
             ))}
           </div>
         </div>
-        <div className="flex flex-col gap-6"><QuartersPanel userId={u.id} orgId={u.orgId} /><BalancesPanel userId={u.id} orgId={u.orgId} /><HolidaysPanel orgId={u.orgId} /></div>
+        <div className="flex flex-col gap-6"><AllowancePanel userId={u.id} orgId={u.orgId} /><BalancesPanel userId={u.id} orgId={u.orgId} /><HolidaysPanel orgId={u.orgId} /></div>
       </div>
     </>
   );

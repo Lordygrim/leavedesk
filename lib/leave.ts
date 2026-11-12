@@ -1,6 +1,7 @@
 import { prisma } from "./db";
 import { sendEmail } from "./mail";
-import { inMd, quarterDays, todayNairobi, type Off } from "./dates";
+import { inMd, todayNairobi, type Off } from "./dates";
+import { allowanceOf, daysByPeriod, totalDays, type Period } from "./allowance";
 
 // Non-working days for one organization: its public holidays plus its mandatory leave periods (weekends are handled separately).
 export async function offFor(orgId: string): Promise<Off> {
@@ -8,21 +9,20 @@ export async function offFor(orgId: string): Promise<Off> {
   const set = new Set(hs.map((h) => h.date));
   return (d) => set.has(d) || cs.some((c) => inMd(d.slice(5), c.startMd, c.endMd));
 }
-export const quarterAllowance = (org: { q1Days: number; q2Days: number; q3Days: number; q4Days: number }, q: number) => [org.q1Days, org.q2Days, org.q3Days, org.q4Days][q - 1];
 
 export async function balance(userId: string, typeId: string) {
   const t = await prisma.leaveType.findUniqueOrThrow({ where: { id: typeId }, include: { org: true } });
-  const total = t.quarterly ? t.org.q1Days + t.org.q2Days + t.org.q3Days + t.org.q4Days : t.daysPerYear;
+  const total = t.quarterly ? totalDays(allowanceOf(t.org)) : t.daysPerYear;
   const year = todayNairobi().slice(0, 4);
   const r = await prisma.leaveRequest.aggregate({ _sum: { workingDays: true }, where: { userId, typeId, status: "APPROVED", startDate: { startsWith: year } } });
   const used = r._sum.workingDays ?? 0;
   return { total, used, left: total - used };
 }
-// Pending and approved days per "YYYY-Qn", for leave types that follow quarterly allowances.
-export async function quarterUsage(userId: string, typeId: string, off: Off) {
+// Pending and approved days per period ("2027-1"), for the leave type that follows the organization's allowance.
+export async function periodUsage(userId: string, typeId: string, off: Off, period: Period) {
   const reqs = await prisma.leaveRequest.findMany({ where: { userId, typeId, status: { in: ["PENDING", "APPROVED"] } } });
   const out: Record<string, number> = {};
-  for (const r of reqs) for (const [k, v] of Object.entries(quarterDays(r.startDate, r.endDate, off))) out[k] = (out[k] ?? 0) + v;
+  for (const r of reqs) for (const [k, v] of Object.entries(daysByPeriod(r.startDate, r.endDate, off, period))) out[k] = (out[k] ?? 0) + v;
   return out;
 }
 export async function notify(userId: string, title: string, body: string) {

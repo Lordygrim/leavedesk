@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
-import { balance, offFor, quarterAllowance, quarterUsage } from "@/lib/leave";
+import { balance, offFor, periodUsage } from "@/lib/leave";
+import { PERIODS, allowanceOf, periodIndex } from "@/lib/allowance";
 import { fmtDay, fmtMd, todayNairobi } from "@/lib/dates";
 import { Ring } from "./ui";
 
@@ -21,26 +22,30 @@ export async function BalancesPanel({ userId, orgId }: { userId: string; orgId: 
   );
 }
 
-// When annual leave may be taken: the organization's days per quarter, and its mandatory leave periods.
-export async function QuartersPanel({ userId, orgId }: { userId: string; orgId: string }) {
+// How annual leave is given in this organization, and what is left in each period.
+export async function AllowancePanel({ userId, orgId }: { userId: string; orgId: string }) {
   const org = await prisma.organization.findUniqueOrThrow({ where: { id: orgId }, include: { closures: true } });
+  const al = allowanceOf(org);
   const annual = await prisma.leaveType.findFirst({ where: { orgId, quarterly: true } });
-  const used = annual ? await quarterUsage(userId, annual.id, await offFor(orgId)) : {};
+  const used = annual ? await periodUsage(userId, annual.id, await offFor(orgId), al.period) : {};
   const year = todayNairobi().slice(0, 4);
-  const names = ["Jan to Mar", "Apr to Jun", "Jul to Sep", "Oct to Dec"];
+  const usedIn = (i: number) => used[`${year}-${i}`] ?? 0;
+  const cum = al.rule === "CUMULATIVE";
+  const now = periodIndex(al.period, todayNairobi());
+  const earned = al.days.slice(0, now + 1).reduce((a, d) => a + d, 0);
+  const usedAll = al.days.reduce((a, _, i) => a + usedIn(i), 0);
   return (
     <section className="rounded-2xl border border-line bg-card p-5">
-      <h2 className="mb-4 text-base font-medium">When you can take annual leave</h2>
+      <h2 className="mb-1 text-base font-medium">Your annual leave allowance</h2>
+      <p className="mb-4 text-sm text-mut">{PERIODS[al.period].label.split(":")[0]}, {cum ? "building up through the year" : al.period === "YEARLY" ? "available all year" : "taken in the period it is given"}</p>
+      {cum && <p className="mb-3 rounded-xl bg-olb px-3 py-2 text-sm text-olt">Available to take now: {Math.max(earned - usedAll, 0)} days</p>}
       <ul className="flex flex-col gap-3">
-        {names.map((n, i) => {
-          const allow = quarterAllowance(org, i + 1), u = used[`${year}-Q${i + 1}`] ?? 0;
-          return (
-            <li key={n} className="flex items-center justify-between gap-3">
-              <span>Q{i + 1} <span className="text-sm text-mut">({n})</span></span>
-              <span className="text-sm text-mut">{allow === 0 ? "No leave days" : `${Math.max(allow - u, 0)} of ${allow} left`}</span>
-            </li>
-          );
-        })}
+        {al.days.map((d, i) => (
+          <li key={i} className="flex items-center justify-between gap-3">
+            <span>{PERIODS[al.period].names[i].split(" (")[0]} {PERIODS[al.period].names[i].includes("(") && <span className="text-sm text-mut">({PERIODS[al.period].names[i].split(" (")[1]}</span>}</span>
+            <span className="text-sm text-mut">{cum ? `+${d} days${usedIn(i) ? `, ${usedIn(i)} taken` : ""}` : d === 0 ? "No leave days" : `${Math.max(d - usedIn(i), 0)} of ${d} left`}</span>
+          </li>
+        ))}
       </ul>
       {org.closures.map((c) => <p key={c.id} className="mt-4 rounded-xl bg-odb px-3 py-2 text-sm text-odt">{c.name}: {fmtMd(c.startMd)} to {fmtMd(c.endMd)}, every year</p>)}
     </section>

@@ -41,7 +41,7 @@ The email addresses are placeholders. Change them under Employees. To try a seco
 
 **Admin access.** A person is an admin if they are the owner, were given admin access by the owner or another admin (Employees > Edit > Admin access), or have a role named HR or Human Resources (automatic). The owner always keeps admin access, and at least one active admin must always remain. The owner's own leave is approved automatically; everyone else's, including other admins', is approved by another admin.
 
-**Off days (leave days per quarter).** Each organization sets how many annual leave days people may take in each quarter (Policies). This firm uses Q1: 0, Q2: 5, Q3: 5, Q4: 0. A request that would go over a quarter's allowance is refused. Annual leave per year is the total of the four quarters.
+**Annual leave allowance.** Each organization picks how annual leave is given (Policies, and at sign-up): **yearly** (one fixed allowance, e.g. 21 days, available from 1 January), **half-yearly**, **quarterly** or **monthly**. For the non-yearly options it also picks the rule: **only in its own period** (days must be taken in the period they are given, unused days are lost: e.g. 0, 5, 5, 0 by quarter), or **building up** (accrual: days are earned as each period starts and can be taken any time later in the year: e.g. 2 days a month). A request that would go over the allowance is refused. Annual leave per year is the total of all periods. Older organizations that only had four quarter fields keep working.
 
 **Mandatory leave.** Periods that repeat every year (this firm: 22 Dec to 11 Jan) are treated like public holidays: they are skipped when working days and back-at-work dates are calculated, and shown on the calendars.
 

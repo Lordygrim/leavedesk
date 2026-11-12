@@ -7,18 +7,27 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "./db";
 import { adminWhere, isAdminUser, requireAdmin, requireUser } from "./dal";
 import { createSession, destroySession } from "./session";
-import { audit, balance, notify, offFor, quarterAllowance, quarterUsage } from "./leave";
+import { audit, balance, notify, offFor, periodUsage } from "./leave";
+import { PERIODS, allowanceOf, daysByPeriod, isPeriod, isRule, totalDays, violation, type Allowance } from "./allowance";
 import { isHrRole } from "./defaults";
 import { createOrganization } from "./org";
 import { getPendingAccount } from "./signup";
 import { baseUrl } from "./url";
 import { sendEmail } from "./mail";
-import { fmt, fmtDay, quarterDays, reportBack, todayNairobi, workingDays } from "./dates";
+import { fmt, fmtDay, reportBack, todayNairobi, workingDays } from "./dates";
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 const str = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
 const sha = (s: string) => createHash("sha256").update(s).digest("hex");
 const days0to260 = (n: number) => Number.isInteger(n) && n >= 0 && n <= 260;
+// Reads the leave allowance fields of a form: how often, when it can be taken, and the days for each period (d0, d1, ...).
+function parseAllowance(fd: FormData): Allowance | null {
+  const period = str(fd, "period"), rule = str(fd, "rule");
+  if (!isPeriod(period)) return null;
+  const days = Array.from({ length: PERIODS[period].count }, (_, i) => Math.round(Number(fd.get(`d${i}`))));
+  if (!days.every(days0to260)) return null;
+  return { period, rule: period === "YEARLY" || !isRule(rule) ? "WINDOW" : rule, days };
+}
 
 // ---------- sign in, sign up, sign out ----------
 export async function signIn(fd: FormData) {
@@ -57,13 +66,13 @@ export async function completeSignUp(fd: FormData) {
   const acc = await getPendingAccount();
   if (!acc) return redirect("/sign-up?error=expired");
   const orgName = str(fd, "org"), name = str(fd, "name"), title = str(fd, "title");
-  const q = [1, 2, 3, 4].map((i) => Math.round(Number(fd.get(`q${i}`))));
+  const allowance = parseAllowance(fd);
   const E = (c: string) => `/sign-up/organization?error=${c}`;
   if (!orgName || !name || !title) return redirect(E("invalid"));
-  if (!q.every(days0to260)) return redirect(E("days"));
+  if (!allowance) return redirect(E("days"));
   if (await prisma.user.findUnique({ where: { email: acc.email } })) return redirect("/sign-in?error=exists");
   const owner = await createOrganization({
-    orgName, name, title, email: acc.email, q, googleId: acc.googleId, hasPassword: !!acc.passwordHash,
+    orgName, name, title, email: acc.email, allowance, googleId: acc.googleId, hasPassword: !!acc.passwordHash,
     passwordHash: acc.passwordHash ?? (await bcrypt.hash(randomBytes(24).toString("hex"), 10)),
   });
   await prisma.pendingAccount.delete({ where: { id: acc.id } });
@@ -86,10 +95,10 @@ export async function submitRequest(fd: FormData) {
   const days = workingDays(start, end, off);
   if (days < 1) return redirect(E("nodays"));
   if (days > (await balance(u.id, typeId)).left) return redirect(E("balance"));
-  if (type.quarterly) {
-    const used = await quarterUsage(u.id, type.id, off);
-    for (const [k, v] of Object.entries(quarterDays(start, end, off)))
-      if ((used[k] ?? 0) + v > quarterAllowance(type.org, Number(k.slice(-1)))) return redirect(`${E("quarter")}&q=${k}`);
+  if (type.quarterly) { // annual leave follows the organization's allowance
+    const al = allowanceOf(type.org);
+    const bad = violation(al, await periodUsage(u.id, type.id, off, al.period), daysByPeriod(start, end, off, al.period));
+    if (bad) return redirect(`${E("quarter")}&q=${bad}`);
   }
   const clash = await prisma.leaveRequest.findFirst({ where: { userId: u.id, status: { in: ["PENDING", "APPROVED"] }, startDate: { lte: end }, endDate: { gte: start } } });
   if (clash) return redirect(E("overlap"));
@@ -285,11 +294,11 @@ export async function deleteEmployee(fd: FormData) {
 // ---------- policies: off days, leave types, holidays, roles ----------
 export async function updateOrganization(fd: FormData) {
   const admin = await requireAdmin();
-  const name = str(fd, "name"), q = [1, 2, 3, 4].map((i) => Math.round(Number(fd.get(`q${i}`))));
-  if (!name || !q.every(days0to260)) return redirect("/admin/policies?error=org");
-  await prisma.organization.update({ where: { id: admin.orgId }, data: { name, q1Days: q[0], q2Days: q[1], q3Days: q[2], q4Days: q[3] } });
-  await prisma.leaveType.updateMany({ where: { orgId: admin.orgId, quarterly: true }, data: { daysPerYear: q.reduce((a, b) => a + b, 0) } });
-  await audit(admin.orgId, admin.name, "Changed leave days per quarter", `Q1 ${q[0]}, Q2 ${q[1]}, Q3 ${q[2]}, Q4 ${q[3]}`);
+  const name = str(fd, "name"), al = parseAllowance(fd);
+  if (!name || !al) return redirect("/admin/policies?error=org");
+  await prisma.organization.update({ where: { id: admin.orgId }, data: { name, leavePeriod: al.period, leaveRule: al.rule, periodDays: al.days.join(",") } });
+  await prisma.leaveType.updateMany({ where: { orgId: admin.orgId, quarterly: true }, data: { daysPerYear: totalDays(al) } });
+  await audit(admin.orgId, admin.name, "Changed annual leave allowance", `${al.period}, ${al.rule}: ${al.days.join(", ")} (${totalDays(al)} days a year)`);
   return redirect("/admin/policies?saved=1");
 }
 export async function addClosure(fd: FormData) {

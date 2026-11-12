@@ -16,7 +16,7 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
   const status = (back: string) => (back > today ? "ON_LEAVE" : back === today ? "DUE" : "OVERDUE");
   return (
     <>
-      {sp.welcome && <div className={note}>Welcome to LeaveDesk! You are the owner and an admin. Next, check <Link className="underline" href="/admin/policies">Policies</Link> (leave days, mandatory leave, holidays, roles), then add your people under <Link className="underline" href="/admin/employees">Employees</Link>.</div>}
+      {sp.welcome && <div className={note}>Welcome to LeaveDesk! You are the owner and an admin. Next, check <Link className="underline" href="/admin/policies">Policies</Link> (annual leave allowance, mandatory leave, holidays, roles), then add your people under <Link className="underline" href="/admin/employees">Employees</Link>.</div>}
       <h1 className={h1}>Who&apos;s on leave</h1>
       <p className={muted}>{out.length} out or due back · {pending} requests waiting for a decision</p>
       <div className={card}><table className={tbl}>

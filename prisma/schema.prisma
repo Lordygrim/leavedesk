@@ -11,7 +11,10 @@ datasource db {
 model Organization {
   id         String      @id @default(cuid())
   name       String
-  q1Days     Int         @default(6) // annual leave days people may take Jan to Mar
+  leavePeriod String     @default("QUARTERLY") // how often annual leave is given: YEARLY, HALF_YEARLY, QUARTERLY or MONTHLY
+  leaveRule  String      @default("WINDOW")     // WINDOW: only in its own period; CUMULATIVE: builds up through the year
+  periodDays String      @default("")           // days for each period, e.g. "0,5,5,0" (empty on older organizations: then the four quarters below are used)
+  q1Days     Int         @default(6) // older single-quarter fields, kept for existing organizations
   q2Days     Int         @default(5) // Apr to Jun
   q3Days     Int         @default(5) // Jul to Sep
   q4Days     Int         @default(5) // Oct to Dec
