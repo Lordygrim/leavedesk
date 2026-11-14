@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "Closure" ADD COLUMN     "endDate" TEXT NOT NULL DEFAULT '',
+ADD COLUMN     "repeats" BOOLEAN NOT NULL DEFAULT true,
+ADD COLUMN     "startDate" TEXT NOT NULL DEFAULT '';

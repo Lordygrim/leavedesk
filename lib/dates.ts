@@ -8,6 +8,11 @@ export function workingDays(a: string, b: string, off: Off) { let n = 0; for (le
 export function reportBack(end: string, off: Off) { let d = add(end, 1); while (!isWorkday(d, off)) d = add(d, 1); return d; }
 // MM-DD range that may wrap around the new year, e.g. 12-22 to 01-11.
 export const inMd = (md: string, s: string, e: string) => (s <= e ? md >= s && md <= e : md >= s || md <= e);
+// A mandatory leave period is either the same days every year (repeats) or one period with exact dates.
+type ClosureLike = { repeats: boolean; startMd: string; endMd: string; startDate: string; endDate: string };
+export const inClosure = (c: ClosureLike, d: string) => (c.repeats ? inMd(d.slice(5), c.startMd, c.endMd) : d >= c.startDate && d <= c.endDate);
+export const closureEnded = (c: ClosureLike, today: string) => !c.repeats && c.endDate < today;
+export const closureText = (c: ClosureLike) => (c.repeats ? `${fmtMd(c.startMd)} to ${fmtMd(c.endMd)}` : `${fmtFull(c.startDate)} to ${fmtFull(c.endDate)}`);
 export const quarterOf = (d: string) => Math.floor((Number(d.slice(5, 7)) - 1) / 3) + 1;
 export function quarterDays(a: string, b: string, off: Off) {
   const out: Record<string, number> = {};
@@ -16,5 +21,6 @@ export function quarterDays(a: string, b: string, off: Off) {
 }
 export const todayNairobi = () => new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Nairobi" });
 export const fmt = (s: string) => D(s).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+export const fmtFull = (s: string) => D(s).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 export const fmtDay = (s: string) => D(s).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
 export const fmtMd = (md: string) => new Date(`2000-${md}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });

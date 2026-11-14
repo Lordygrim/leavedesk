@@ -1,6 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
-import { inMd, reportBack, workingDays } from "../lib/dates";
+import { reportBack, workingDays } from "../lib/dates";
 import { DEFAULT_HOLIDAYS, OTHER_TYPES, isHrRole } from "../lib/defaults";
 const p = new PrismaClient();
 async function main() {
@@ -11,13 +11,13 @@ async function main() {
   const roleNames = ["Partner", "Associate", "Litigation Clerk", "Conveyancing Clerk", "Conveyancing & Dispatch", "Dispatch & Office Admin", "Receptionist"];
   const roles: Record<string, string> = {};
   for (const name of roleNames) roles[name] = (await p.role.create({ data: { orgId: org.id, name, grantsAdmin: isHrRole(name) } })).id;
-  await p.closure.create({ data: { orgId: org.id, name: "Mandatory leave", startMd: "12-22", endMd: "01-11" } });
+  await p.closure.create({ data: { orgId: org.id, name: "Mandatory leave", repeats: false, startDate: "2026-12-22", endDate: "2027-01-11", startMd: "12-22", endMd: "01-11" } });
   const types: Record<string, string> = {};
   types.Annual = (await p.leaveType.create({ data: { orgId: org.id, name: "Annual", daysPerYear: 10, quarterly: true } })).id;
   for (const [name, daysPerYear] of OTHER_TYPES) types[name] = (await p.leaveType.create({ data: { orgId: org.id, name, daysPerYear } })).id;
   for (const [date, name] of DEFAULT_HOLIDAYS) await p.holiday.create({ data: { orgId: org.id, date, name } });
   const hset = new Set(DEFAULT_HOLIDAYS.map((h) => h[0]));
-  const off = (d: string) => hset.has(d) || inMd(d.slice(5), "12-22", "01-11");
+  const off = (d: string) => hset.has(d) || (d >= "2026-12-22" && d <= "2027-01-11");
   // name, role, department, email, owner, admin. Emails are placeholders: change them under Employees.
   const people: [string, string, string, string, boolean, boolean][] = [
     ["H. Gichuki", "Partner", "Management", "h.gichuki@company.co.ke", true, true],

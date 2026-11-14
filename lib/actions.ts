@@ -381,11 +381,22 @@ export async function updateOrganization(fd: FormData) {
 }
 export async function addClosure(fd: FormData) {
   const admin = await requireAdmin();
-  const name = str(fd, "name"), from = str(fd, "from"), to = str(fd, "to");
-  if (!name || !ISO.test(from) || !ISO.test(to)) return redirect("/admin/policies?error=closure");
-  await prisma.closure.create({ data: { orgId: admin.orgId, name, startMd: from.slice(5), endMd: to.slice(5) } });
-  await audit(admin.orgId, admin.name, "Added mandatory leave period", `${name}: ${from.slice(5)} to ${to.slice(5)} every year`);
+  const name = str(fd, "name"), from = str(fd, "from"), to = str(fd, "to"), repeats = fd.get("repeats") === "on";
+  if (!name || !ISO.test(from) || !ISO.test(to) || (!repeats && to < from)) return redirect("/admin/policies?error=closure");
+  await prisma.closure.create({ data: { orgId: admin.orgId, name, repeats, startMd: from.slice(5), endMd: to.slice(5), startDate: repeats ? "" : from, endDate: repeats ? "" : to } });
+  await audit(admin.orgId, admin.name, "Added mandatory leave period", repeats ? `${name}: ${from.slice(5)} to ${to.slice(5)} every year` : `${name}: ${from} to ${to}`);
   return redirect("/admin/policies");
+}
+// Change the dates of a mandatory leave period (also turns an old "every year" period into one with exact dates).
+export async function updateClosure(fd: FormData) {
+  const admin = await requireAdmin();
+  const id = str(fd, "id"), from = str(fd, "from"), to = str(fd, "to");
+  if (!ISO.test(from) || !ISO.test(to) || to < from) return redirect("/admin/policies?error=closure");
+  const c = await prisma.closure.findFirst({ where: { id, orgId: admin.orgId } });
+  if (!c) return redirect("/admin/policies");
+  await prisma.closure.update({ where: { id }, data: { repeats: false, startDate: from, endDate: to, startMd: from.slice(5), endMd: to.slice(5) } });
+  await audit(admin.orgId, admin.name, "Changed mandatory leave dates", `${c.name}: ${from} to ${to}`);
+  return redirect("/admin/policies?saved=1");
 }
 export async function deleteClosure(fd: FormData) {
   const admin = await requireAdmin();

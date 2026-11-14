@@ -1,13 +1,29 @@
 import { prisma } from "./db";
 import { sendEmail } from "./mail";
-import { inMd, todayNairobi, type Off } from "./dates";
+import { inClosure, todayNairobi, type Off } from "./dates";
 import { allowanceOf, daysByPeriod, totalDays, type Period } from "./allowance";
+
+// Older versions stored mandatory leave as "the same days every year". Turn those into one period with exact dates
+// (the current or next occurrence), so they can be changed year by year like any other period.
+export async function upgradeClosures(orgId: string) {
+  const old = await prisma.closure.findMany({ where: { orgId, repeats: true } });
+  if (!old.length) return;
+  const today = todayNairobi(), y = Number(today.slice(0, 4));
+  for (const c of old) {
+    const wrap = c.startMd > c.endMd; // runs over the new year, e.g. 22 Dec to 11 Jan
+    const pick = (sy: number) => ({ s: `${sy}-${c.startMd}`, e: `${wrap ? sy + 1 : sy}-${c.endMd}` });
+    let p = pick(wrap ? y - 1 : y);
+    if (today > p.e) p = pick(wrap ? y : y + 1);
+    await prisma.closure.update({ where: { id: c.id }, data: { repeats: false, startDate: p.s, endDate: p.e, startMd: p.s.slice(5), endMd: p.e.slice(5) } });
+  }
+}
 
 // Non-working days for one organization: its public holidays plus its mandatory leave periods (weekends are handled separately).
 export async function offFor(orgId: string): Promise<Off> {
+  await upgradeClosures(orgId);
   const [hs, cs] = await Promise.all([prisma.holiday.findMany({ where: { orgId } }), prisma.closure.findMany({ where: { orgId } })]);
   const set = new Set(hs.map((h) => h.date));
-  return (d) => set.has(d) || cs.some((c) => inMd(d.slice(5), c.startMd, c.endMd));
+  return (d) => set.has(d) || cs.some((c) => inClosure(c, d));
 }
 
 export async function balance(userId: string, typeId: string) {

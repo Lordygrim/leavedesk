@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
-import { balance, offFor, periodUsage } from "@/lib/leave";
+import { balance, offFor, periodUsage, upgradeClosures } from "@/lib/leave";
 import { PERIODS, allowanceOf, periodIndex } from "@/lib/allowance";
-import { fmtDay, fmtMd, todayNairobi } from "@/lib/dates";
+import { closureEnded, closureText, fmtDay, todayNairobi } from "@/lib/dates";
 import { Ring } from "./ui";
 
 export async function BalancesPanel({ userId, orgId }: { userId: string; orgId: string }) {
@@ -24,6 +24,7 @@ export async function BalancesPanel({ userId, orgId }: { userId: string; orgId: 
 
 // How annual leave is given in this organization, and what is left in each period.
 export async function AllowancePanel({ userId, orgId }: { userId: string; orgId: string }) {
+  await upgradeClosures(orgId);
   const org = await prisma.organization.findUniqueOrThrow({ where: { id: orgId }, include: { closures: true } });
   const al = allowanceOf(org);
   const annual = await prisma.leaveType.findFirst({ where: { orgId, quarterly: true } });
@@ -47,7 +48,7 @@ export async function AllowancePanel({ userId, orgId }: { userId: string; orgId:
           </li>
         ))}
       </ul>
-      {org.closures.map((c) => <p key={c.id} className="mt-4 rounded-xl bg-odb px-3 py-2 text-sm text-odt">{c.name}: {fmtMd(c.startMd)} to {fmtMd(c.endMd)}, every year</p>)}
+      {org.closures.filter((c) => !closureEnded(c, todayNairobi())).map((c) => <p key={c.id} className="mt-4 rounded-xl bg-odb px-3 py-2 text-sm text-odt">{c.name}: {closureText(c)}</p>)}
     </section>
   );
 }

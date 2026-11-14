@@ -121,6 +121,9 @@ model Closure {
   orgId   String
   org     Organization @relation(fields: [orgId], references: [id])
   name    String
+  repeats   Boolean @default(true) // true: the same days every year (startMd to endMd); false: one period with exact dates (startDate to endDate)
+  startDate String  @default("")
+  endDate   String  @default("")
   startMd String
   endMd   String
 }

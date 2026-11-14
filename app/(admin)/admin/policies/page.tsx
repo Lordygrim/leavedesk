@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/dal";
-import { setAdminAccess, setRoleAdmin, addClosure, addHoliday, addLeaveType, addRole, deleteClosure, deleteHoliday, deleteRole, updateLeaveType, updateOrganization } from "@/lib/actions";
-import { fmtDay, fmtMd } from "@/lib/dates";
+import { setAdminAccess, setRoleAdmin, addClosure, updateClosure, addHoliday, addLeaveType, addRole, deleteClosure, deleteHoliday, deleteRole, updateLeaveType, updateOrganization } from "@/lib/actions";
+import { closureEnded, closureText, fmtDay, todayNairobi } from "@/lib/dates";
+import { upgradeClosures } from "@/lib/leave";
 import { allowanceOf } from "@/lib/allowance";
 import { isHrRole } from "@/lib/defaults";
 import { isAdminUser } from "@/lib/dal";
@@ -17,8 +18,10 @@ const ERR: Record<string, string> = {
 export default async function Policies({ searchParams }: { searchParams: Promise<{ error?: string; welcome?: string; saved?: string }> }) {
   const admin = await requireAdmin();
   const sp = await searchParams;
+  await upgradeClosures(admin.orgId);
+  const today = todayNairobi();
   const org = await prisma.organization.findUniqueOrThrow({ where: { id: admin.orgId } });
-  const closures = await prisma.closure.findMany({ where: { orgId: org.id }, orderBy: { startMd: "asc" } });
+  const closures = await prisma.closure.findMany({ where: { orgId: org.id }, orderBy: [{ startDate: "asc" }, { startMd: "asc" }] });
   const types = await prisma.leaveType.findMany({ where: { orgId: org.id }, orderBy: { daysPerYear: "desc" } });
   const hols = await prisma.holiday.findMany({ where: { orgId: org.id }, orderBy: { date: "asc" } });
   const roles = await prisma.role.findMany({ where: { orgId: org.id }, include: { _count: { select: { users: true } } }, orderBy: { name: "asc" } });
@@ -46,21 +49,25 @@ export default async function Policies({ searchParams }: { searchParams: Promise
         </section>
         <section className={sec}>
           <h2 className={h2}>Mandatory leave periods</h2>
-          <p className={muted}>Dates when the whole organization is off every year, such as a festive closure. They are skipped when working days and back-at-work dates are calculated.</p>
+          <p className={muted}>Dates when the whole organization is off, such as a festive closure. They are skipped when working days and back-at-work dates are calculated.</p>
           {closures.length === 0 && <p className={muted}>None set.</p>}
           <table className={tbl}><tbody>
             {closures.map((c) => (
-              <tr key={c.id}><td>{c.name}</td><td>{fmtMd(c.startMd)} to {fmtMd(c.endMd)}, every year</td>
+              <tr key={c.id}><td>{c.name}</td><td>{closureText(c)}{closureEnded(c, today) && <span className={muted}> (ended)</span>}
+                <details className="mt-2"><summary className="cursor-pointer text-sm text-ac">Change dates</summary>
+                  <form action={updateClosure} className="mt-2 flex flex-wrap items-end gap-2"><input type="hidden" name="id" value={c.id} />
+                    <input className={fieldSm} type="date" name="from" defaultValue={c.startDate} required aria-label="From" /><input className={fieldSm} type="date" name="to" defaultValue={c.endDate} required aria-label="To" />
+                    <button className={btnSm}>Save</button></form></details></td>
                 <td><form action={deleteClosure}><input type="hidden" name="id" value={c.id} /><button className={ghostSm}>Remove</button></form></td></tr>
             ))}
           </tbody></table>
           <form action={addClosure} className="flex flex-wrap items-end gap-3">
             <label className={lbl}>Name<input className={fieldSm} name="name" placeholder="Festive closure" required /></label>
-            <label className={lbl}>From (any year)<input className={fieldSm} type="date" name="from" required /></label>
-            <label className={lbl}>To (any year)<input className={fieldSm} type="date" name="to" required /></label>
+            <label className={lbl}>From<input className={fieldSm} type="date" name="from" required /></label>
+            <label className={lbl}>To<input className={fieldSm} type="date" name="to" required /></label>
             <button className={btnSm}>Add</button>
           </form>
-          <p className={muted}>A period can run over the new year, for example from 22 Dec to 11 Jan: pick any year for each date, only the day and month are used.</p>
+          <p className={muted}>Pick the exact dates, for example 22 Dec 2026 to 11 Jan 2027. When the dates change, use Change dates on the row, or remove it and add a new one.</p>
         </section>
         <section className={sec}>
           <h2 className={h2}>Other leave types</h2>

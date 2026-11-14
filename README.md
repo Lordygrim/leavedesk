@@ -57,7 +57,7 @@ The email addresses are placeholders. Change them under Employees. To try a seco
 
 **Annual leave allowance.** Each organization picks how annual leave is given (Policies, and at sign-up): **yearly** (one fixed allowance, e.g. 21 days, available from 1 January), **half-yearly**, **quarterly** or **monthly**. For the non-yearly options it also picks the rule: **only in its own period** (days must be taken in the period they are given, unused days are lost: e.g. 0, 5, 5, 0 by quarter), or **building up** (accrual: days are earned as each period starts and can be taken any time later in the year: e.g. 2 days a month). A request that would go over the allowance is refused. Annual leave per year is the total of all periods. Older organizations that only had four quarter fields keep working.
 
-**Mandatory leave.** Periods that repeat every year (this firm: 22 Dec to 11 Jan) are treated like public holidays: they are skipped when working days and back-at-work dates are calculated, and shown on the calendars.
+**Mandatory leave.** Periods when the whole organization is off (this firm: 22 Dec 2026 to 11 Jan 2027) are entered with exact dates (and can be changed or removed when the dates change). They are treated like public holidays: they are skipped when working days and back-at-work dates are calculated, and shown on the calendars.
 
 **Other settings (Policies).** Rename the organization, add leave types and set their days, add or remove public holidays, add or remove roles.
 

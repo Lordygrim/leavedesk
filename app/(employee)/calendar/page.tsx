@@ -2,7 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/dal";
 import { offFor } from "@/lib/leave";
-import { fmt, inMd, isWorkday, todayNairobi } from "@/lib/dates";
+import { fmt, inClosure, isWorkday, todayNairobi } from "@/lib/dates";
 import { monthGrid, monthLabel, shiftMonth } from "@/lib/calendar";
 import { card, ghostSm, h1, h2, muted } from "@/components/styles";
 export default async function Calendar({ searchParams }: { searchParams: Promise<{ m?: string }> }) {
@@ -40,7 +40,7 @@ export default async function Calendar({ searchParams }: { searchParams: Promise
               const inMonth = d.startsWith(ym);
               const mine = visible.find((r) => r.userId === u.id && r.startDate <= d && r.endDate >= d);
               const out = isWorkday(d, off) ? visible.filter((r) => r.userId !== u.id && r.status === "APPROVED" && r.startDate <= d && r.endDate >= d).length : 0;
-              const hol = holMap.get(d) ?? closures.find((c) => inMd(d.slice(5), c.startMd, c.endMd))?.name;
+              const hol = holMap.get(d) ?? closures.find((c) => inClosure(c, d))?.name;
               return (
                 <div key={d} className={`min-h-24 rounded-xl border p-2 text-sm ${inMonth ? "border-line" : "border-transparent opacity-50"} ${mine ? (mine.status === "APPROVED" ? "bg-olb text-olt" : "bg-peb text-pet") : "bg-card"} ${d === today ? "ring-2 ring-ac" : ""}`}>
                   <div className="font-medium">{Number(d.slice(8))}</div>
