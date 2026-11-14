@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { requireAdmin } from "@/lib/dal";
+import { redirect } from "next/navigation";
+import { isAdminUser, requireUser } from "@/lib/dal";
 import { signOut } from "@/lib/actions";
 import ThemeToggle from "@/components/ThemeToggle";
 import { ghostSm } from "@/components/styles";
@@ -9,7 +10,8 @@ const links: [string, string][] = [
   ["/admin/employees", "Employees"], ["/admin/policies", "Policies"], ["/admin/reports", "Reports"], ["/home", "My leave"],
 ];
 export default async function AdminLayout({ children }: { children: ReactNode }) {
-  const u = await requireAdmin();
+  const u = await requireUser();
+  if (!isAdminUser(u)) redirect("/home"); // pages and actions check again with requireAdmin()
   return (
     <div className="flex min-h-screen max-[700px]:flex-col">
       <aside className="flex w-[210px] shrink-0 flex-col gap-1 border-r border-line bg-sbg px-3 py-6 max-[700px]:w-auto max-[700px]:flex-row max-[700px]:flex-wrap max-[700px]:border-b max-[700px]:border-r-0">

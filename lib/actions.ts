@@ -293,7 +293,8 @@ export async function updateEmployee(fd: FormData) {
 export async function setAdminAccess(fd: FormData) {
   const admin = await requireAdmin();
   const id = str(fd, "id"), grant = fd.get("grant") === "1";
-  const back = `/admin/employees/${id}?error=`;
+  const fromPolicies = str(fd, "from") === "policies";
+  const back = fromPolicies ? "/admin/policies?error=" : `/admin/employees/${id}?error=`;
   const t = await prisma.user.findFirst({ where: { id, orgId: admin.orgId }, include: { role: true } });
   if (!t) return redirect("/admin/employees");
   if (t.isOwner) return redirect(back + "owner");
@@ -305,7 +306,26 @@ export async function setAdminAccess(fd: FormData) {
   await prisma.user.update({ where: { id }, data: { isAdmin: grant } });
   await audit(admin.orgId, admin.name, grant ? "Granted admin access" : "Rescinded admin access", t.name);
   await notify(id, grant ? "You now have admin access" : "Your admin access was removed", `${admin.name} ${grant ? "gave you access to" : "removed your access to"} the HR dashboard.`);
-  return redirect(`/admin/employees/${id}?done=${grant ? "granted" : "rescinded"}`);
+  return redirect(fromPolicies ? "/admin/policies?saved=1" : `/admin/employees/${id}?done=${grant ? "granted" : "rescinded"}`);
+}
+// Only the owner can decide which roles carry admin access. (Roles named HR always do.)
+export async function setRoleAdmin(fd: FormData) {
+  const admin = await requireAdmin();
+  const roleId = str(fd, "id"), grant = fd.get("grant") === "1";
+  const back = "/admin/policies?error=";
+  if (!admin.isOwner) return redirect(back + "ownersonly");
+  const role = await prisma.role.findFirst({ where: { id: roleId, orgId: admin.orgId } });
+  if (!role) return redirect("/admin/policies");
+  if (isHrRole(role.name)) return redirect(back + "hrlocked");
+  if (!grant) {
+    const left = await prisma.user.count({ where: { orgId: admin.orgId, active: true, OR: [{ isOwner: true }, { isAdmin: true }, { role: { grantsAdmin: true, NOT: { id: roleId } } }] } });
+    if (left < 1) return redirect(back + "lastadmin");
+  }
+  await prisma.role.update({ where: { id: roleId }, data: { grantsAdmin: grant } });
+  await audit(admin.orgId, admin.name, grant ? "Gave a role admin access" : "Removed a role's admin access", role.name);
+  for (const u of await prisma.user.findMany({ where: { orgId: admin.orgId, roleId, active: true, NOT: { id: admin.id } } }))
+    await notify(u.id, grant ? "You now have admin access" : "Your admin access was removed", `${admin.name} ${grant ? "gave" : "removed"} HR dashboard access ${grant ? "to" : "from"} the ${role.name} role.`);
+  return redirect("/admin/policies?saved=1");
 }
 export async function deleteEmployee(fd: FormData) {
   const admin = await requireAdmin();

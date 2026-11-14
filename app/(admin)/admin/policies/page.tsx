@@ -1,13 +1,17 @@
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/dal";
-import { addClosure, addHoliday, addLeaveType, addRole, deleteClosure, deleteHoliday, deleteRole, updateLeaveType, updateOrganization } from "@/lib/actions";
+import { setAdminAccess, setRoleAdmin, addClosure, addHoliday, addLeaveType, addRole, deleteClosure, deleteHoliday, deleteRole, updateLeaveType, updateOrganization } from "@/lib/actions";
 import { fmtDay, fmtMd } from "@/lib/dates";
 import { allowanceOf } from "@/lib/allowance";
+import { isHrRole } from "@/lib/defaults";
+import { isAdminUser } from "@/lib/dal";
 import AllowanceFields from "@/components/AllowanceFields";
 import { btnSm, card, err, field, fieldSm, ghostSm, h1, h2, lbl, muted, note, tbl } from "@/components/styles";
 const ERR: Record<string, string> = {
   org: "Enter a name and whole numbers from 0 to 260 for each period.", nametaken: "Another organization already uses that name.", closure: "Enter a name and both dates.", type: "Enter a leave type name and a number of days from 0 to 260.",
   typeexists: "That leave type already exists.", holiday: "Enter a date and a name for the holiday.", role: "Enter a role name.", roleexists: "That role already exists.",
+  ownersonly: "Only the organization owner can change which roles have admin access.", hrlocked: "HR roles always have admin access.",
+  owner: "The owner always has admin access.", hrrole: "That person has admin access through an HR role. Change their role to remove it.", lastadmin: "At least one active admin is required.",
   roleinuse: "That role still has people in it. Move them to another role first.",
 };
 export default async function Policies({ searchParams }: { searchParams: Promise<{ error?: string; welcome?: string; saved?: string }> }) {
@@ -18,6 +22,10 @@ export default async function Policies({ searchParams }: { searchParams: Promise
   const types = await prisma.leaveType.findMany({ where: { orgId: org.id }, orderBy: { daysPerYear: "desc" } });
   const hols = await prisma.holiday.findMany({ where: { orgId: org.id }, orderBy: { date: "asc" } });
   const roles = await prisma.role.findMany({ where: { orgId: org.id }, include: { _count: { select: { users: true } } }, orderBy: { name: "asc" } });
+  const people = await prisma.user.findMany({ where: { orgId: org.id, active: true, joinPending: false }, include: { role: true }, orderBy: { name: "asc" } });
+  const admins = people.filter((p) => isAdminUser(p));
+  const others = people.filter((p) => !isAdminUser(p));
+  const how = (p: (typeof people)[number]) => (p.isOwner ? "Owner" : p.role.grantsAdmin ? `Through the ${p.role.name} role` : "Given by an admin");
   const sec = `${card} flex flex-col gap-4 p-5`;
   return (
     <>
@@ -73,18 +81,52 @@ export default async function Policies({ searchParams }: { searchParams: Promise
           </form>
         </section>
         <section className={sec}>
-          <h2 className={h2}>Roles</h2>
-          <p className={muted}>Job titles in your organization. A role named HR (or Human Resources) gives its people admin access automatically.</p>
-          <table className={tbl}><tbody>
-            {roles.map((r) => (
-              <tr key={r.id}><td>{r.name}{r.grantsAdmin ? <span className={`${muted} ml-2`}>(admin access)</span> : ""}</td><td>{r._count.users} {r._count.users === 1 ? "person" : "people"}</td>
-                <td>{r._count.users === 0 && <form action={deleteRole}><input type="hidden" name="id" value={r.id} /><button className={ghostSm}>Remove</button></form>}</td></tr>
-            ))}
-          </tbody></table>
+          <h2 className={h2}>Roles and admin access</h2>
+          <p className={muted}>Job titles in your organization. A role named HR (or Human Resources) always has admin access. {admin.isOwner ? "As the owner you can also give any other role admin access, or take it away." : "Only the owner can change which roles have admin access."}</p>
+          <table className={tbl}>
+            <thead><tr><th>Role</th><th>Admin access</th><th>People</th><th></th></tr></thead>
+            <tbody>
+              {roles.map((r) => (
+                <tr key={r.id}>
+                  <td>{r.name}</td>
+                  <td>{isHrRole(r.name) ? "Always (HR role)" : admin.isOwner ? (
+                    <form action={setRoleAdmin} className="flex items-center gap-2"><input type="hidden" name="id" value={r.id} /><input type="hidden" name="grant" value={r.grantsAdmin ? "0" : "1"} />
+                      <span className={muted}>{r.grantsAdmin ? "Yes" : "No"}</span><button className={ghostSm}>{r.grantsAdmin ? "Revoke" : "Give admin access"}</button></form>
+                  ) : r.grantsAdmin ? "Yes" : "No"}</td>
+                  <td>{r._count.users}</td>
+                  <td>{r._count.users === 0 && <form action={deleteRole}><input type="hidden" name="id" value={r.id} /><button className={ghostSm}>Remove</button></form>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
           <form action={addRole} className="flex flex-wrap items-end gap-3">
             <label className={lbl}>New role<input className={fieldSm} name="name" required /></label>
             <button className={btnSm}>Add role</button>
           </form>
+          <h2 className={`${h2} mt-2`}>People with admin access</h2>
+          <table className={tbl}>
+            <tbody>
+              {admins.map((p) => (
+                <tr key={p.id}>
+                  <td>{p.name}<div className={muted}>{p.role.name} · {how(p)}</div></td>
+                  <td>{!p.isOwner && p.isAdmin && !p.role.grantsAdmin && (
+                    <form action={setAdminAccess}><input type="hidden" name="id" value={p.id} /><input type="hidden" name="grant" value="0" /><input type="hidden" name="from" value="policies" /><button className={ghostSm}>Revoke</button></form>
+                  )}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {others.length > 0 && (
+            <form action={setAdminAccess} className="flex flex-wrap items-end gap-3">
+              <input type="hidden" name="grant" value="1" /><input type="hidden" name="from" value="policies" />
+              <label className={lbl}>Give admin access to<select className={fieldSm} name="id" required defaultValue="">
+                <option value="" disabled>Choose a person</option>
+                {others.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.role.name})</option>)}
+              </select></label>
+              <button className={btnSm}>Give admin access</button>
+            </form>
+          )}
+          <p className={muted}>Admins can open the HR dashboard, approve leave, and manage people and policies. The owner always keeps admin access, and at least one admin must remain. Changes apply straight away.</p>
         </section>
         <section className={`${sec} xl:col-span-2`}>
           <h2 className={h2}>Public holidays</h2>
