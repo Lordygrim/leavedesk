@@ -10,7 +10,7 @@ import { createSession, destroySession } from "./session";
 import { audit, balance, notify, offFor, periodUsage } from "./leave";
 import { PERIODS, allowanceOf, daysByPeriod, isPeriod, isRule, totalDays, violation, type Allowance } from "./allowance";
 import { isHrRole } from "./defaults";
-import { createOrganization } from "./org";
+import { createOrganization, orgNameTaken } from "./org";
 import { getPendingAccount } from "./signup";
 import { baseUrl } from "./url";
 import { sendEmail } from "./mail";
@@ -33,7 +33,8 @@ function parseAllowance(fd: FormData): Allowance | null {
 export async function signIn(fd: FormData) {
   const email = str(fd, "email").toLowerCase();
   const u = await prisma.user.findUnique({ where: { email }, include: { role: true } });
-  if (!u || !u.active || !(await bcrypt.compare(String(fd.get("password") ?? ""), u.passwordHash))) return redirect("/sign-in?error=1");
+  if (!u || !(await bcrypt.compare(String(fd.get("password") ?? ""), u.passwordHash))) return redirect("/sign-in?error=1");
+  if (!u.active) return redirect(u.joinPending ? "/sign-in?error=pending" : "/sign-in?error=1");
   const admin = isAdminUser(u);
   await createSession(u.id, admin);
   return redirect(admin ? "/admin" : "/home");
@@ -67,9 +68,10 @@ export async function completeSignUp(fd: FormData) {
   if (!acc) return redirect("/sign-up?error=expired");
   const orgName = str(fd, "org"), name = str(fd, "name"), title = str(fd, "title");
   const allowance = parseAllowance(fd);
-  const E = (c: string) => `/sign-up/organization?error=${c}`;
+  const E = (c: string) => `/sign-up/organization/create?error=${c}`;
   if (!orgName || !name || !title) return redirect(E("invalid"));
   if (!allowance) return redirect(E("days"));
+  if (await orgNameTaken(orgName)) return redirect(E("nametaken"));
   if (await prisma.user.findUnique({ where: { email: acc.email } })) return redirect("/sign-in?error=exists");
   const owner = await createOrganization({
     orgName, name, title, email: acc.email, allowance, googleId: acc.googleId, hasPassword: !!acc.passwordHash,
@@ -79,6 +81,43 @@ export async function completeSignUp(fd: FormData) {
   (await cookies()).delete("signup_pending");
   await createSession(owner.id, true);
   return redirect("/admin?welcome=1");
+}
+
+// Sign-up, step 2 (join): find an existing organization by its name.
+export async function findOrganization(fd: FormData) {
+  if (!(await getPendingAccount())) return redirect("/sign-up?error=expired");
+  const name = str(fd, "org");
+  const org = name ? await prisma.organization.findFirst({ where: { name: { equals: name, mode: "insensitive" } } }) : null;
+  if (!org) return redirect("/sign-up/organization/join?error=notfound");
+  return redirect(`/sign-up/organization/join/details?org=${org.id}`);
+}
+// Sign-up, step 3 (join): name, role and department. Admin roles cannot be picked here. By default an admin must approve the person first.
+export async function completeJoin(fd: FormData) {
+  const acc = await getPendingAccount();
+  if (!acc) return redirect("/sign-up?error=expired");
+  const orgId = str(fd, "org"), name = str(fd, "name"), roleId = str(fd, "roleId"), department = str(fd, "department");
+  const E = (c: string) => `/sign-up/organization/join/details?org=${encodeURIComponent(orgId)}&error=${c}`;
+  const org = await prisma.organization.findUnique({ where: { id: orgId } });
+  if (!org) return redirect("/sign-up/organization/join?error=notfound");
+  if (!name || !department) return redirect(E("invalid"));
+  const role = await prisma.role.findFirst({ where: { id: roleId, orgId, grantsAdmin: false } });
+  if (!role) return redirect(E("invalid"));
+  if (await prisma.user.findUnique({ where: { email: acc.email } })) return redirect("/sign-in?error=exists");
+  const wait = org.requireApproval;
+  const user = await prisma.user.create({ data: {
+    orgId, name, email: acc.email, roleId: role.id, department, googleId: acc.googleId, hasPassword: !!acc.passwordHash,
+    passwordHash: acc.passwordHash ?? (await bcrypt.hash(randomBytes(24).toString("hex"), 10)), active: !wait, joinPending: wait,
+  } });
+  await prisma.pendingAccount.delete({ where: { id: acc.id } });
+  (await cookies()).delete("signup_pending");
+  await audit(orgId, name, wait ? "Asked to join" : "Joined", `${role.name}, ${department}`);
+  if (wait) {
+    for (const a of await prisma.user.findMany({ where: { orgId, active: true, ...adminWhere } }))
+      await notify(a.id, "Request to join", `${name} (${role.name}, ${department}) asked to join ${org.name}. Review it under Employees.`);
+    return redirect("/sign-in?joined=1");
+  }
+  await createSession(user.id, false);
+  return redirect("/home");
 }
 
 // ---------- employee actions ----------
@@ -291,12 +330,31 @@ export async function deleteEmployee(fd: FormData) {
   return redirect("/admin/employees?deleted=1");
 }
 
+export async function approveJoin(fd: FormData) {
+  const admin = await requireAdmin();
+  const u = await prisma.user.findFirst({ where: { id: str(fd, "id"), orgId: admin.orgId, joinPending: true } });
+  if (!u) return;
+  await prisma.user.update({ where: { id: u.id }, data: { active: true, joinPending: false } });
+  await audit(admin.orgId, admin.name, "Approved join request", u.name);
+  await notify(u.id, "Welcome to LeaveDesk", `${admin.name} approved your request to join ${admin.org.name}. You can sign in now.`);
+  revalidatePath("/admin/employees");
+}
+export async function declineJoin(fd: FormData) {
+  const admin = await requireAdmin();
+  const u = await prisma.user.findFirst({ where: { id: str(fd, "id"), orgId: admin.orgId, joinPending: true } });
+  if (!u) return;
+  await prisma.$transaction([prisma.notification.deleteMany({ where: { userId: u.id } }), prisma.passwordReset.deleteMany({ where: { userId: u.id } }), prisma.user.delete({ where: { id: u.id } })]);
+  await audit(admin.orgId, admin.name, "Declined join request", `${u.name} (${u.email})`);
+  revalidatePath("/admin/employees");
+}
+
 // ---------- policies: off days, leave types, holidays, roles ----------
 export async function updateOrganization(fd: FormData) {
   const admin = await requireAdmin();
   const name = str(fd, "name"), al = parseAllowance(fd);
   if (!name || !al) return redirect("/admin/policies?error=org");
-  await prisma.organization.update({ where: { id: admin.orgId }, data: { name, leavePeriod: al.period, leaveRule: al.rule, periodDays: al.days.join(",") } });
+  if (await orgNameTaken(name, admin.orgId)) return redirect("/admin/policies?error=nametaken");
+  await prisma.organization.update({ where: { id: admin.orgId }, data: { name, requireApproval: fd.get("approval") === "on", leavePeriod: al.period, leaveRule: al.rule, periodDays: al.days.join(",") } });
   await prisma.leaveType.updateMany({ where: { orgId: admin.orgId, quarterly: true }, data: { daysPerYear: totalDays(al) } });
   await audit(admin.orgId, admin.name, "Changed annual leave allowance", `${al.period}, ${al.rule}: ${al.days.join(", ")} (${totalDays(al)} days a year)`);
   return redirect("/admin/policies?saved=1");

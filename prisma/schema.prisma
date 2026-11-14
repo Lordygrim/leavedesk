@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -12,6 +12,7 @@ model Organization {
   id         String      @id @default(cuid())
   name       String
   leavePeriod String     @default("QUARTERLY") // how often annual leave is given: YEARLY, HALF_YEARLY, QUARTERLY or MONTHLY
+  requireApproval Boolean @default(true)        // people who join by typing the organization's name wait for an admin to approve them
   leaveRule  String      @default("WINDOW")     // WINDOW: only in its own period; CUMULATIVE: builds up through the year
   periodDays String      @default("")           // days for each period, e.g. "0,5,5,0" (empty on older organizations: then the four quarters below are used)
   q1Days     Int         @default(6) // older single-quarter fields, kept for existing organizations
@@ -40,6 +41,7 @@ model User {
   active        Boolean        @default(true)
   googleId      String?        @unique        // set when the person signs in with Google
   hasPassword   Boolean        @default(true) // false for people who only ever sign in with Google
+  joinPending   Boolean        @default(false) // asked to join and is waiting for an admin to approve (cannot sign in yet)
   isOwner       Boolean        @default(false) // created the organization; always an admin
   isAdmin       Boolean        @default(false) // admin access granted by the owner or another admin
   managerId     String?                       // who approves this person's leave (a supervising partner or manager)

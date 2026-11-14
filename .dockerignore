@@ -1,0 +1,6 @@
+node_modules
+.next
+.env
+.git
+generated
+prisma/dev.db*

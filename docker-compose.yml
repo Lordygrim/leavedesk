@@ -1,0 +1,42 @@
+# Local PostgreSQL for development:   docker compose up -d db
+# The whole app in containers:        docker compose --profile app up --build
+# The password below is for local development only. Change it, and do not publish port 5432, on a real server.
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: leavedesk
+      POSTGRES_PASSWORD: leavedesk
+      POSTGRES_DB: leavedesk
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U leavedesk -d leavedesk"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    profiles: ["app"]
+    build: .
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://leavedesk:leavedesk@db:5432/leavedesk?schema=public
+      AUTH_SECRET: ${AUTH_SECRET:?Set AUTH_SECRET in your .env file}
+      CRON_SECRET: ${CRON_SECRET:-}
+      APP_URL: ${APP_URL:-http://localhost:3000}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      MAIL_FROM: ${MAIL_FROM:-LeaveDesk <onboarding@resend.dev>}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+
+volumes:
+  pgdata:

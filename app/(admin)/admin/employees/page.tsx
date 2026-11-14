@@ -2,7 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/dal";
 import { balance } from "@/lib/leave";
-import { addEmployee } from "@/lib/actions";
+import { addEmployee, approveJoin, declineJoin } from "@/lib/actions";
 import { Ring } from "@/components/ui";
 import { btn, card, err, field, ghostSm, h1, lbl, muted, note, tbl } from "@/components/styles";
 const ERR: Record<string, string> = { invalid: "Fill in every field with valid values.", short: "The temporary password must be at least 8 characters.", exists: "Someone with that email already exists." };
@@ -10,7 +10,8 @@ export default async function Employees({ searchParams }: { searchParams: Promis
   const admin = await requireAdmin();
   const sp = await searchParams;
   const annual = await prisma.leaveType.findFirstOrThrow({ where: { orgId: admin.orgId, name: "Annual" } });
-  const users = await prisma.user.findMany({ where: { orgId: admin.orgId }, include: { role: true, manager: true }, orderBy: { name: "asc" } });
+  const waiting = await prisma.user.findMany({ where: { orgId: admin.orgId, joinPending: true }, include: { role: true }, orderBy: { name: "asc" } });
+  const users = await prisma.user.findMany({ where: { orgId: admin.orgId, joinPending: false }, include: { role: true, manager: true }, orderBy: { name: "asc" } });
   const roles = await prisma.role.findMany({ where: { orgId: admin.orgId }, orderBy: { name: "asc" } });
   const rows = await Promise.all(users.map(async (u) => ({ u, b: await balance(u.id, annual.id) })));
   const access = (u: (typeof users)[number]) => (u.isOwner ? "Owner (admin)" : u.isAdmin ? "Admin" : u.role.grantsAdmin ? "Admin (HR role)" : "Staff");
@@ -19,6 +20,21 @@ export default async function Employees({ searchParams }: { searchParams: Promis
       <h1 className={h1}>Employees and balances</h1>
       {sp.error && <div className={err}>{ERR[sp.error]}</div>}
       {sp.deleted && <div className={note}>Employee deleted.</div>}
+      {waiting.length > 0 && (
+        <section className={`${card} flex flex-col gap-3 p-5`}>
+          <h2 className="text-base font-medium">Waiting to join ({waiting.length})</h2>
+          <p className={muted}>These people signed up with your organization&apos;s name. They cannot sign in until you approve them. Check the name, role and department first.</p>
+          <table className={tbl}><tbody>
+            {waiting.map((w) => (
+              <tr key={w.id}><td>{w.name} ({w.role.name})<div className={muted}>{w.email} · {w.department}</div></td>
+                <td><div className="flex justify-end gap-2">
+                  <form action={approveJoin}><input type="hidden" name="id" value={w.id} /><button className={btn + " h-9 px-3.5 text-sm"}>Approve</button></form>
+                  <form action={declineJoin}><input type="hidden" name="id" value={w.id} /><button className={ghostSm}>Decline</button></form>
+                </div></td></tr>
+            ))}
+          </tbody></table>
+        </section>
+      )}
       <details className={`${card} p-5`} open={!!sp.error}>
         <summary className="cursor-pointer font-medium">Add employee</summary>
         <form action={addEmployee} className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">

@@ -61,7 +61,7 @@ export async function GET(req: Request) {
     if (byEmail) { await prisma.user.update({ where: { id: byEmail.id }, data: { googleId: sub } }); user = byEmail; }
   }
   if (user) {
-    if (!user.active) return fail("this account has been deactivated");
+    if (!user.active) return fail(user.joinPending ? "this account is waiting for an admin to approve it" : "this account has been deactivated", user.joinPending ? "pending" : "google");
     const admin = isAdminUser(user);
     const r = respond(admin ? "/admin" : "/home");
     r.cookies.set(SESSION_COOKIE, await sessionToken(user.id, admin), sessionCookieOptions);

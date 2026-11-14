@@ -1,6 +1,10 @@
 import { prisma } from "./db";
 import { totalDays, type Allowance } from "./allowance";
 import { DEFAULT_HOLIDAYS, OTHER_TYPES, isHrRole } from "./defaults";
+// Organization names are unique (ignoring capitals) because people join an organization by typing its name.
+export const orgNameTaken = async (name: string, exceptId?: string) =>
+  !!(await prisma.organization.findFirst({ where: { name: { equals: name, mode: "insensitive" }, ...(exceptId ? { id: { not: exceptId } } : {}) } }));
+
 // Creates an organization with its starter roles, leave types and holidays, and its owner. Used by both sign-up paths.
 export async function createOrganization(a: { orgName: string; name: string; title: string; email: string; passwordHash: string; hasPassword: boolean; googleId: string | null; allowance: Allowance }) {
   return prisma.$transaction(async (tx) => {

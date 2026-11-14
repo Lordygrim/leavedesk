@@ -2,23 +2,37 @@
 
 A leave management app for organizations (law firms, schools, companies). Every organization signs up on its own, has its own people, roles, leave rules and holidays, and cannot see anyone else's data.
 
-Stack: Next.js 15 (App Router) + TypeScript, Tailwind CSS v4, Prisma + SQLite (zero setup), cookie sessions (jose + bcryptjs).
+Stack: Next.js 15 (App Router) + TypeScript, Tailwind CSS v4, PostgreSQL (in Docker) + Prisma, cookie sessions (jose + bcryptjs).
 
-## Run it in VS Code
+## Run it in VS Code (PostgreSQL in Docker)
 
-1. Install Node.js 20 or newer, then open this folder in VS Code (File > Open Folder).
-2. In the terminal (Terminal > New Terminal):
+1. Install Node.js 20 or newer and Docker (Docker Engine with the Compose plugin; on Ubuntu follow https://docs.docker.com/engine/install/ubuntu/ and add yourself to the `docker` group). Check with `docker compose version`.
+2. Open this folder in VS Code. Copy `.env.example` to `.env` and set `AUTH_SECRET` and `CRON_SECRET` to long random strings (the first run can use the values as they are).
+3. In the terminal:
 
 ```
+docker compose up -d db
 npm install
-npx prisma db push --force-reset
+npx prisma migrate dev --name init
 npx prisma db seed
 npm run dev
 ```
 
-3. Open http://localhost:3000
+4. Open http://localhost:3000
 
-`--force-reset` wipes the database. Use it for a fresh start or after a version that changed the database structure.
+`docker compose up -d db` starts PostgreSQL in the background (its data lives in a Docker volume and survives restarts). `migrate dev --name init` creates the tables the first time and writes `prisma/migrations/`: keep that folder and commit it to Git. After you change `prisma/schema.prisma`, run `npx prisma migrate dev --name what_you_changed`. `npx prisma db seed` wipes the data and loads the demo firm. Stop the database with `docker compose stop db`. See the data with `npm run db:studio`.
+
+### Moving data from the old SQLite version
+
+If you already have people and leave requests in `prisma/dev.db` you want to keep: run the three steps above up to `migrate dev`, but skip the seed, then run `npm run db:import-sqlite`. It copies everything from the SQLite file into PostgreSQL and prints the number of rows per table. It only reads the SQLite file, so it stays as a backup.
+
+### Running everything in containers
+
+`docker compose --profile app up --build` builds the app image from the `Dockerfile` and starts the app and PostgreSQL together at http://localhost:3000. It applies migrations on start (`prisma migrate deploy`), so create `prisma/migrations` with `migrate dev` first. It reads `AUTH_SECRET`, `CRON_SECRET`, `APP_URL`, Google and email settings from your `.env`.
+
+### Hosted PostgreSQL
+
+To use a hosted database (Neon, Supabase, AWS RDS...), set `DATABASE_URL` to its connection string (often ending in `?sslmode=require`) and run `npx prisma migrate deploy`. Hosted PostgreSQL also works on Vercel, which SQLite does not.
 
 ## Demo organization: "Our Law Firm" (password for everyone: `Password123!`)
 
@@ -47,10 +61,14 @@ The email addresses are placeholders. Change them under Employees. To try a seco
 
 **Other settings (Policies).** Rename the organization, add leave types and set their days, add or remove public holidays, add or remove roles.
 
-## Signing up (two steps)
+## Signing up
 
-1. **Create an account** on `/sign-up`: use **Sign up with Google**, or enter an email and a password (typed twice). Email sign-ups get a confirmation link by email; Google sign-ups are confirmed straight away. Without `RESEND_API_KEY` the link is also shown on the page and printed in the terminal (development only).
-2. **Create your organization**: organization name, your name and job title, and the annual leave days per quarter. Saving creates the organization, makes you its owner and an admin, and takes you to the dashboard.
+1. **Create an account** on `/sign-up`: use **Sign up with Google**, or an email and a password (typed twice). Email sign-ups get a confirmation link by email; Google sign-ups are confirmed straight away. Without `RESEND_API_KEY` the link is also shown on the page and printed in the terminal (development only).
+2. **Create or join an organization** (two options side by side):
+   - **Create an organization:** organization name, your name and job title, and the annual leave allowance. You become the owner and an admin and land on the dashboard.
+   - **Join an organization:** type the organization's name (capitals don't matter), then give your name, role and department. The role list never includes admin roles, so nobody can join as an admin. By default an admin must approve the request first: the person cannot sign in until then, admins are notified, and the request appears under **Employees > Waiting to join**. Admins can turn the approval requirement off under **Policies**.
+
+Organization names are unique (ignoring capitals), because people join by typing the name.
 
 ## Google sign-in (optional)
 
@@ -88,7 +106,7 @@ Reminders: `GET /api/cron/reminders` (needs `CRON_SECRET`) reminds people the da
 
 - Dates are plain `YYYY-MM-DD` strings; "today" uses Africa/Nairobi time.
 - New organizations start with fixed-date 2026 and part of 2027 Kenyan public holidays. Add the rest, and moveable ones, under Policies.
-- SQLite does not work on Vercel. Before deploying there, move to hosted Postgres: change `provider` in `prisma/schema.prisma`, set `DATABASE_URL`, run `npx prisma db push`.
+- On a real server, change the database password in `docker-compose.yml`, do not publish port 5432 to the internet, and back up the `pgdata` volume (for example with `pg_dump`).
 - On Next.js 16, rename `middleware.ts` to `proxy.ts` and export `proxy`.
 - Set a new long random `AUTH_SECRET` and `CRON_SECRET` before deploying.
 

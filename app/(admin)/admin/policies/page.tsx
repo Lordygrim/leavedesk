@@ -6,7 +6,7 @@ import { allowanceOf } from "@/lib/allowance";
 import AllowanceFields from "@/components/AllowanceFields";
 import { btnSm, card, err, field, fieldSm, ghostSm, h1, h2, lbl, muted, note, tbl } from "@/components/styles";
 const ERR: Record<string, string> = {
-  org: "Enter a name and whole numbers from 0 to 260 for each period.", closure: "Enter a name and both dates.", type: "Enter a leave type name and a number of days from 0 to 260.",
+  org: "Enter a name and whole numbers from 0 to 260 for each period.", nametaken: "Another organization already uses that name.", closure: "Enter a name and both dates.", type: "Enter a leave type name and a number of days from 0 to 260.",
   typeexists: "That leave type already exists.", holiday: "Enter a date and a name for the holiday.", role: "Enter a role name.", roleexists: "That role already exists.",
   roleinuse: "That role still has people in it. Move them to another role first.",
 };
@@ -30,6 +30,7 @@ export default async function Policies({ searchParams }: { searchParams: Promise
           <h2 className={h2}>Organization and annual leave allowance</h2>
           <form action={updateOrganization} className="flex flex-col gap-4">
             <label className={lbl}>Organization name<input className={field} name="name" defaultValue={org.name} required /></label>
+            <label className="flex items-start gap-3 text-sm"><input type="checkbox" name="approval" defaultChecked={org.requireApproval} className="mt-0.5 h-4 w-4" />People who join by typing this organization&apos;s name must be approved by an admin before they can sign in (recommended)</label>
             <AllowanceFields initial={allowanceOf(org)} />
             <p className={muted}>Saving changes everyone&apos;s allowance straight away. Days already taken stay counted.</p>
             <button className={`${btnSm} self-start`}>Save</button>
