@@ -3,7 +3,7 @@
 //   npm run db:import-sqlite
 // It needs the SQLite file at prisma/dev.db (override with SQLITE_URL="file:./something.db", relative to the prisma folder).
 import { execSync } from "child_process";
-import { readFileSync, writeFileSync } from "fs";
+import { readFileSync, unlinkSync, writeFileSync } from "fs";
 import { PrismaClient } from "@prisma/client";
 
 async function main() {
@@ -15,6 +15,7 @@ async function main() {
   writeFileSync("prisma/sqlite.schema.prisma", twin);
   process.env.SQLITE_URL = process.env.SQLITE_URL ?? "file:./dev.db";
   execSync("npx prisma generate --schema prisma/sqlite.schema.prisma", { stdio: "inherit" });
+  unlinkSync("prisma/sqlite.schema.prisma"); // the generated client is all we need; a second schema file left in /prisma confuses the VS Code Prisma extension
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { PrismaClient: Lite } = require("../generated/sqlite");
   const from = new Lite(), to = new PrismaClient();
