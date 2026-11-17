@@ -14,17 +14,16 @@ Stack: Next.js 15 (App Router) + TypeScript, Tailwind CSS v4, PostgreSQL (in Doc
 docker compose up -d db
 npm install
 npx prisma migrate dev --name init
-npx prisma db seed
 npm run dev
 ```
 
 4. Open http://localhost:3000
 
-`docker compose up -d db` starts PostgreSQL in the background (its data lives in a Docker volume and survives restarts). `migrate dev --name init` creates the tables the first time and writes `prisma/migrations/`: keep that folder and commit it to Git. After you change `prisma/schema.prisma`, run `npx prisma migrate dev --name what_you_changed`. `npx prisma db seed` wipes the data and loads the demo firm. Stop the database with `docker compose stop db`. See the data with `npm run db:studio`.
+`docker compose up -d db` starts PostgreSQL in the background (its data lives in a Docker volume and survives restarts). `migrate dev --name init` creates the tables the first time and writes `prisma/migrations/`: keep that folder and commit it to Git. After you change `prisma/schema.prisma`, run `npx prisma migrate dev --name what_you_changed`. The database starts empty: sign up in the app to create your organization. For a throwaway demo firm run `npm run db:seed-demo` (it WIPES all data first). To wipe everything and start empty again run `npm run db:reset-empty`. Stop the database with `docker compose stop db`. See the data with `npm run db:studio`.
 
 ### Moving data from the old SQLite version
 
-If you already have people and leave requests in `prisma/dev.db` you want to keep: run the three steps above up to `migrate dev`, but skip the seed, then run `npm run db:import-sqlite`. It copies everything from the SQLite file into PostgreSQL and prints the number of rows per table. It only reads the SQLite file, so it stays as a backup.
+If you already have people and leave requests in `prisma/dev.db` you want to keep: run the steps above up to `migrate dev`, then run `npm run db:import-sqlite`. It copies everything from the SQLite file into PostgreSQL and prints the number of rows per table. It only reads the SQLite file, so it stays as a backup.
 
 ### Running everything in containers
 
@@ -34,7 +33,7 @@ If you already have people and leave requests in `prisma/dev.db` you want to kee
 
 To use a hosted database (Neon, Supabase, AWS RDS...), set `DATABASE_URL` to its connection string (often ending in `?sslmode=require`) and run `npx prisma migrate deploy`. Hosted PostgreSQL also works on Vercel, which SQLite does not.
 
-## Demo organization: "Our Law Firm" (password for everyone: `Password123!`)
+## Optional demo organization (only after `npm run db:seed-demo`): "Our Law Firm" (password for everyone: `Password123!`)
 
 | Person | Role | Access |
 |---|---|---|

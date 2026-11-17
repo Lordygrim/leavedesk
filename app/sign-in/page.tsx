@@ -6,6 +6,7 @@ import { btn, err, field, ghostSm, h1, lbl, muted, note } from "@/components/sty
 const ERR: Record<string, string> = {
   "1": "Email or password is wrong.", google: "Google sign-in did not work. Please try again.",
   googlesetup: "Google sign-in is not set up yet. The person running the app needs to add the Google keys to .env (see the README) and restart.",
+  unconfirmed: "Please confirm your email first: open the link we emailed you. If it has expired, sign up again to get a new one.",
   pending: "Your request to join is waiting for an admin to approve it. You will get an email when it is approved.",
   nogoogle: "No account uses that Google email. Ask your admin to add you, or create an organization.", exists: "That email already has an account. Sign in instead.",
 };
@@ -27,7 +28,6 @@ export default async function SignIn({ searchParams }: { searchParams: Promise<{
       </form>
       <GoogleButton href="/api/auth/google?intent=signin" label="Continue with Google" />
       <p className={muted}>New here? <Link className="text-ac" href="/sign-up">Create an account</Link></p>
-      <p className={muted}>Demo firm: h.gichuki@company.co.ke (owner, admin), loise.mwai@company.co.ke (admin) or grace.mincha@company.co.ke (employee). Password: <b>Password123!</b></p>
     </div>
   );
 }

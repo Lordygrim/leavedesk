@@ -11,7 +11,7 @@ import { audit, balance, notify, offFor, periodUsage } from "./leave";
 import { PERIODS, allowanceOf, daysByPeriod, isPeriod, isRule, totalDays, violation, type Allowance } from "./allowance";
 import { isHrRole } from "./defaults";
 import { createOrganization, orgNameTaken } from "./org";
-import { getPendingAccount } from "./signup";
+import { getPendingAccount, pendingCookieOptions, pendingToken } from "./signup";
 import { baseUrl } from "./url";
 import { sendEmail } from "./mail";
 import { fmt, fmtDay, reportBack, todayNairobi, workingDays } from "./dates";
@@ -31,9 +31,19 @@ function parseAllowance(fd: FormData): Allowance | null {
 
 // ---------- sign in, sign up, sign out ----------
 export async function signIn(fd: FormData) {
-  const email = str(fd, "email").toLowerCase();
+  const email = str(fd, "email").toLowerCase(), pw = String(fd.get("password") ?? "");
   const u = await prisma.user.findUnique({ where: { email }, include: { role: true } });
-  if (!u || !(await bcrypt.compare(String(fd.get("password") ?? ""), u.passwordHash))) return redirect("/sign-in?error=1");
+  if (!u) {
+    // Not a member of an organization yet? They may have signed up and not finished: let them carry on instead of signing up again.
+    const pend = await prisma.pendingAccount.findUnique({ where: { email } });
+    if (pend?.passwordHash && (await bcrypt.compare(pw, pend.passwordHash))) {
+      if (!pend.confirmedAt) return redirect("/sign-in?error=unconfirmed");
+      (await cookies()).set("signup_pending", await pendingToken(pend.id), pendingCookieOptions);
+      return redirect("/sign-up/organization");
+    }
+    return redirect("/sign-in?error=1");
+  }
+  if (!(await bcrypt.compare(pw, u.passwordHash))) return redirect("/sign-in?error=1");
   if (!u.active) return redirect(u.joinPending ? "/sign-in?error=pending" : "/sign-in?error=1");
   const admin = isAdminUser(u);
   await createSession(u.id, admin);
@@ -49,8 +59,9 @@ export async function startSignUp(fd: FormData) {
   if (pw.length < 8) return redirect(E("short"));
   if (pw !== again) return redirect(E("mismatch"));
   if (await prisma.user.findUnique({ where: { email } })) return redirect(E("exists"));
-  await prisma.pendingAccount.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 7 * 24 * 3600 * 1000) } } });
+  await prisma.pendingAccount.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 30 * 24 * 3600 * 1000) } } });
   const existing = await prisma.pendingAccount.findUnique({ where: { email } });
+  if (existing?.confirmedAt) return redirect(E("resume")); // already signed up: sign in to carry on
   let dev = "";
   if (!existing || Date.now() - existing.createdAt.getTime() > 60_000) { // at most one email a minute per address
     const token = randomBytes(32).toString("hex"), link = `${await baseUrl()}/sign-up/confirm?token=${token}`;

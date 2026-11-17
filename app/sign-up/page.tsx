@@ -5,7 +5,8 @@ import PasswordInput from "@/components/PasswordInput";
 import { btn, err, field, ghostSm, h1, lbl, muted, note } from "@/components/styles";
 const ERR: Record<string, string> = {
   invalid: "Enter a valid email address.", short: "The password must be at least 8 characters.", mismatch: "The two passwords don't match.",
-  exists: "An account already uses that email. Sign in instead.", expired: "Your sign-up session expired. Please start again.",
+  exists: "An account already uses that email. Sign in instead.", expired: "Your sign-up session expired. Sign in with the email or Google account you signed up with to carry on where you left off.",
+  resume: "You already signed up with that email. Sign in to carry on creating or joining an organization.",
   googlesetup: "Google sign-up is not set up yet. The person running the app needs to add the Google keys to .env (see the README) and restart.",
   google: "Google sign-up did not work. Please try again.",
   badlink: "That confirmation link is invalid or has expired. Please sign up again.",

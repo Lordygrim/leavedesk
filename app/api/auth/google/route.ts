@@ -6,6 +6,10 @@ export async function GET(req: Request) {
   const i = new URL(req.url).searchParams.get("intent");
   const intent = i === "signup" || i === "link" ? i : "signin";
   if (!googleConfigured()) return NextResponse.redirect(`${appUrl(req)}${intent === "signup" ? "/sign-up" : intent === "link" ? "/profile" : "/sign-in"}?error=googlesetup`);
+  const base = appUrl(req);
+  const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
+  // Cookies belong to one address. If the person started on another address (for example the network IP), restart on the registered one.
+  if (host && host !== new URL(base).host) return NextResponse.redirect(`${base}/api/auth/google?intent=${intent}`);
   const state = randomBytes(16).toString("hex"), nonce = randomBytes(16).toString("hex");
   const u = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   u.search = new URLSearchParams({

@@ -25,7 +25,7 @@ export async function GET(req: Request) {
   if (!clientId || !secret) return fail("GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET is missing in .env (restart the server after editing it)");
   const code = url.searchParams.get("code"), state = url.searchParams.get("state");
   if (!code || !state) return fail("the address has no code or state");
-  if (!saved) return fail("the sign-in cookie is missing. Open the app at localhost:3000 for the whole flow and allow cookies");
+  if (!saved) return fail("the sign-in cookie is missing. Start and finish on the same address (localhost:3000) and allow cookies");
   if (s !== state) return fail("state mismatch (the sign-in was started in a different tab or browser)");
 
   let tokenRes: Response;
@@ -67,9 +67,11 @@ export async function GET(req: Request) {
     r.cookies.set(SESSION_COOKIE, await sessionToken(user.id, admin), sessionCookieOptions);
     return r;
   }
-  if (intent === "signup") { // a new person: Google has confirmed the email, so go on to create the organization
-    await prisma.pendingAccount.deleteMany({ where: { email } });
-    const acc = await prisma.pendingAccount.create({ data: { email, name, googleId: sub, confirmedAt: new Date() } });
+  // Someone who signed up (account confirmed) but has not created or joined an organization yet: carry on from there.
+  let acc = await prisma.pendingAccount.findFirst({ where: { OR: [{ googleId: sub }, { email }], confirmedAt: { not: null } } });
+  if (acc) acc = await prisma.pendingAccount.update({ where: { id: acc.id }, data: { googleId: sub, name: acc.name ?? name } });
+  else if (intent === "signup") acc = await prisma.pendingAccount.upsert({ where: { email }, update: { googleId: sub, name, confirmedAt: new Date(), tokenHash: null }, create: { email, name, googleId: sub, confirmedAt: new Date() } });
+  if (acc) {
     const r = respond("/sign-up/organization");
     r.cookies.set("signup_pending", await pendingToken(acc.id), pendingCookieOptions);
     return r;
