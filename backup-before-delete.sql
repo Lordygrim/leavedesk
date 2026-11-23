@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 96Y5Avph7xipcyoV5R3romz2gdXPoo640DFq0nLncBjGEiYs4lrpxcSV7fMhow4
+\restrict 7V2XQn5mHufL0CsI8JH9uzhLgHIHcMOrB35BHGaZzzcLyWaT1jZRaonHPK1am6H
 
 -- Dumped from database version 16.16
 -- Dumped by pg_dump version 16.16
@@ -336,7 +336,6 @@ COPY public."PasswordReset" (id, "userId", "tokenHash", "expiresAt", "createdAt"
 --
 
 COPY public."PendingAccount" (id, email, "passwordHash", "googleId", name, "tokenHash", "confirmedAt", "createdAt") FROM stdin;
-cmwsunflz0000yt36rpvq84om	michaelsila97@gmail.com	\N	103557475420841479771	Michael Sila	\N	2026-11-23 05:52:59.586	2026-11-23 05:52:59.591
 \.
 
 
@@ -697,5 +696,5 @@ REVOKE USAGE ON SCHEMA public FROM PUBLIC;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 96Y5Avph7xipcyoV5R3romz2gdXPoo640DFq0nLncBjGEiYs4lrpxcSV7fMhow4
+\unrestrict 7V2XQn5mHufL0CsI8JH9uzhLgHIHcMOrB35BHGaZzzcLyWaT1jZRaonHPK1am6H
 
