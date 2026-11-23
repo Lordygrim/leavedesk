@@ -10,12 +10,13 @@ const ERR: Record<string, string> = {
   pending: "Your request to join is waiting for an admin to approve it. You will get an email when it is approved.",
   nogoogle: "No account uses that Google email. Ask your admin to add you, or create an organization.", exists: "That email already has an account. Sign in instead.",
 };
-export default async function SignIn({ searchParams }: { searchParams: Promise<{ error?: string; reset?: string; why?: string; joined?: string }> }) {
+export default async function SignIn({ searchParams }: { searchParams: Promise<{ error?: string; reset?: string; why?: string; joined?: string; deleted?: string }> }) {
   const sp = await searchParams;
   return (
     <div className="mx-auto flex max-w-sm flex-col gap-4 p-4 pt-20">
       <b className="text-xl text-ac">LeaveDesk</b>
       <h1 className={h1}>Sign in</h1>
+      {sp.deleted && <div className={note}>The organization was deleted.</div>}
       {sp.joined && <div className={note}>Request sent. An admin must approve you before you can sign in. You will get an email when it is approved.</div>}
       {sp.reset && <div className={note}>Your password was updated. Sign in with the new one.</div>}
       {sp.error && <div className={err}>{ERR[sp.error] ?? ERR["1"]}</div>}

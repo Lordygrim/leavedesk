@@ -20,3 +20,7 @@ export async function createOrganization(a: { orgName: string; name: string; tit
     return u;
   });
 }
+
+// Roles and departments are free text, so every organization uses its own words.
+export const cleanName = (s: string) => s.replace(/\s+/g, " ").trim();
+export const findRole = (orgId: string, name: string) => prisma.role.findFirst({ where: { orgId, name: { equals: name, mode: "insensitive" } } });

@@ -1,7 +1,12 @@
 // Sends email through Resend when RESEND_API_KEY is set. Without a key it only logs, so development works offline.
 export async function sendEmail(to: string, subject: string, text: string) {
   const key = process.env.RESEND_API_KEY;
-  if (!key) { console.log(`\n[email not sent, no RESEND_API_KEY] to ${to}: ${subject}\n${text}\n`); return; }
+  if (!key) {
+    // In development the message is printed so you can copy links. In production never print it (it may hold a private link).
+    if (process.env.NODE_ENV === "production") console.error(`[email not sent: RESEND_API_KEY is not set] to ${to}: ${subject}`);
+    else console.log(`\n[email not sent, no RESEND_API_KEY] to ${to}: ${subject}\n${text}\n`);
+    return;
+  }
   try {
     await fetch("https://api.resend.com/emails", {
       method: "POST",

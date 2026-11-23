@@ -10,7 +10,7 @@ import { createSession, destroySession } from "./session";
 import { audit, balance, notify, offFor, periodUsage } from "./leave";
 import { PERIODS, allowanceOf, daysByPeriod, isPeriod, isRule, totalDays, violation, type Allowance } from "./allowance";
 import { isHrRole } from "./defaults";
-import { createOrganization, orgNameTaken } from "./org";
+import { cleanName, createOrganization, findRole, orgNameTaken } from "./org";
 import { getPendingAccount, pendingCookieOptions, pendingToken } from "./signup";
 import { baseUrl } from "./url";
 import { sendEmail } from "./mail";
@@ -59,6 +59,7 @@ export async function startSignUp(fd: FormData) {
   if (pw.length < 8) return redirect(E("short"));
   if (pw !== again) return redirect(E("mismatch"));
   if (await prisma.user.findUnique({ where: { email } })) return redirect(E("exists"));
+  if (process.env.NODE_ENV === "production" && !process.env.RESEND_API_KEY) return redirect(E("noemail")); // never create unconfirmed accounts without a way to confirm
   await prisma.pendingAccount.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 30 * 24 * 3600 * 1000) } } });
   const existing = await prisma.pendingAccount.findUnique({ where: { email } });
   if (existing?.confirmedAt) return redirect(E("resume")); // already signed up: sign in to carry on
@@ -68,7 +69,7 @@ export async function startSignUp(fd: FormData) {
     const data = { passwordHash: await bcrypt.hash(pw, 10), googleId: null, tokenHash: sha(token), confirmedAt: null, createdAt: new Date() };
     await prisma.pendingAccount.upsert({ where: { email }, update: data, create: { email, ...data } });
     await sendEmail(email, "Confirm your email for LeaveDesk", `Welcome to LeaveDesk!\n\nConfirm your email to continue creating your organization:\n${link}\n\nThe link works for 24 hours. If you did not sign up, you can ignore this email.`);
-    if (!process.env.RESEND_API_KEY) dev = `&devlink=${encodeURIComponent(link)}`; // development only: no email service is set up
+    if (!process.env.RESEND_API_KEY && process.env.NODE_ENV !== "production") dev = `&devlink=${encodeURIComponent(link)}`; // development only: no email service is set up
   }
   return redirect(`/sign-up?sent=1${dev}`);
 }
@@ -106,13 +107,15 @@ export async function findOrganization(fd: FormData) {
 export async function completeJoin(fd: FormData) {
   const acc = await getPendingAccount();
   if (!acc) return redirect("/sign-up?error=expired");
-  const orgId = str(fd, "org"), name = str(fd, "name"), roleId = str(fd, "roleId"), department = str(fd, "department");
+  const orgId = str(fd, "org"), name = cleanName(str(fd, "name")), roleName = cleanName(str(fd, "role")), department = cleanName(str(fd, "department"));
   const E = (c: string) => `/sign-up/organization/join/details?org=${encodeURIComponent(orgId)}&error=${c}`;
   const org = await prisma.organization.findUnique({ where: { id: orgId } });
   if (!org) return redirect("/sign-up/organization/join?error=notfound");
-  if (!name || !department) return redirect(E("invalid"));
-  const role = await prisma.role.findFirst({ where: { id: roleId, orgId, grantsAdmin: false } });
-  if (!role) return redirect(E("invalid"));
+  if (!name || !department || department.length > 60 || !roleName || roleName.length > 60) return redirect(E("invalid"));
+  // People type their own role, but nobody can join into a role that carries admin access.
+  const existingRole = await findRole(orgId, roleName);
+  if (isHrRole(roleName) || existingRole?.grantsAdmin) return redirect(E("adminrole"));
+  const role = existingRole ?? (await prisma.role.create({ data: { orgId, name: roleName, grantsAdmin: false } }));
   if (await prisma.user.findUnique({ where: { email: acc.email } })) return redirect("/sign-in?error=exists");
   const wait = org.requireApproval;
   const user = await prisma.user.create({ data: {
@@ -272,31 +275,33 @@ export async function recordReturn(fd: FormData) {
 // ---------- people and admin access ----------
 export async function addEmployee(fd: FormData) {
   const admin = await requireAdmin();
-  const name = str(fd, "name"), email = str(fd, "email").toLowerCase(), roleId = str(fd, "roleId"), department = str(fd, "department"), pw = String(fd.get("password") ?? "");
+  const name = cleanName(str(fd, "name")), email = str(fd, "email").toLowerCase(), roleName = cleanName(str(fd, "role")), department = cleanName(str(fd, "department")), pw = String(fd.get("password") ?? "");
   const E = (c: string) => `/admin/employees?error=${c}`;
-  if (!name || !email.includes("@") || !department) return redirect(E("invalid"));
+  if (!name || !email.includes("@") || !roleName || roleName.length > 60 || !department || department.length > 60) return redirect(E("invalid"));
   if (pw.length < 8) return redirect(E("short"));
-  if (!(await prisma.role.findFirst({ where: { id: roleId, orgId: admin.orgId } }))) return redirect(E("invalid"));
   if (await prisma.user.findUnique({ where: { email } })) return redirect(E("exists"));
-  await prisma.user.create({ data: { orgId: admin.orgId, name, email, roleId, department, passwordHash: await bcrypt.hash(pw, 10) } });
-  await audit(admin.orgId, admin.name, "Added employee", `${name} (${email})`);
+  // The role is typed in. If it does not exist yet it is created (a role named HR carries admin access).
+  const role = (await findRole(admin.orgId, roleName)) ?? (await prisma.role.create({ data: { orgId: admin.orgId, name: roleName, grantsAdmin: isHrRole(roleName) } }));
+  await prisma.user.create({ data: { orgId: admin.orgId, name, email, roleId: role.id, department, passwordHash: await bcrypt.hash(pw, 10) } });
+  await audit(admin.orgId, admin.name, "Added employee", `${name} (${email}), ${role.name}`);
   return redirect("/admin/employees");
 }
 export async function updateEmployee(fd: FormData) {
   const admin = await requireAdmin();
-  const id = str(fd, "id"), roleId = str(fd, "roleId"), department = str(fd, "department"), email = str(fd, "email").toLowerCase(), managerId = str(fd, "managerId"), active = fd.get("active") === "on", pw = String(fd.get("password") ?? "");
+  const id = str(fd, "id"), roleName = cleanName(str(fd, "role")), department = cleanName(str(fd, "department")), email = str(fd, "email").toLowerCase(), managerId = str(fd, "managerId"), active = fd.get("active") === "on", pw = String(fd.get("password") ?? "");
   const back = `/admin/employees/${id}?error=`;
   const target = await prisma.user.findFirst({ where: { id, orgId: admin.orgId } });
-  const role = await prisma.role.findFirst({ where: { id: roleId, orgId: admin.orgId } });
-  if (!role || !target || !department || !email.includes("@")) return redirect(back + "invalid");
+  if (!roleName || roleName.length > 60 || !target || !department || department.length > 60 || !email.includes("@")) return redirect(back + "invalid");
   if (await prisma.user.findFirst({ where: { email, id: { not: id } } })) return redirect(back + "emailtaken");
   if (managerId && !(await prisma.user.findFirst({ where: { id: managerId, orgId: admin.orgId, active: true, NOT: { id } } }))) return redirect(back + "invalid");
   if (pw && pw.length < 8) return redirect(back + "short");
   if (id === admin.id && !active) return redirect(back + "self");
-  const stillAdmin = target.isOwner || target.isAdmin || role.grantsAdmin;
+  const existingRole = await findRole(admin.orgId, roleName);
+  const stillAdmin = target.isOwner || target.isAdmin || (existingRole ? existingRole.grantsAdmin : isHrRole(roleName));
   const others = await prisma.user.count({ where: { orgId: admin.orgId, id: { not: id }, active: true, ...adminWhere } });
   if (others + (active && stillAdmin ? 1 : 0) < 1) return redirect(back + "lastadmin");
-  await prisma.user.update({ where: { id }, data: { roleId, department, email, managerId: managerId || null, active, ...(pw ? { passwordHash: await bcrypt.hash(pw, 10) } : {}) } });
+  const role = existingRole ?? (await prisma.role.create({ data: { orgId: admin.orgId, name: roleName, grantsAdmin: isHrRole(roleName) } }));
+  await prisma.user.update({ where: { id }, data: { roleId: role.id, department, email, managerId: managerId || null, active, ...(pw ? { passwordHash: await bcrypt.hash(pw, 10) } : {}) } });
   await audit(admin.orgId, admin.name, "Updated employee", `${target.name}: ${role.name}, ${department}, ${email}, ${active ? "active" : "deactivated"}${pw ? ", password reset" : ""}`);
   return redirect("/admin/employees");
 }
@@ -380,15 +385,49 @@ export async function declineJoin(fd: FormData) {
 }
 
 // ---------- policies: off days, leave types, holidays, roles ----------
+export async function renameOrganization(fd: FormData) {
+  const admin = await requireAdmin();
+  const name = cleanName(str(fd, "name"));
+  if (!name || name.length > 120) return redirect("/admin/policies?error=orgname");
+  if (await orgNameTaken(name, admin.orgId)) return redirect("/admin/policies?error=nametaken");
+  await prisma.organization.update({ where: { id: admin.orgId }, data: { name } });
+  await audit(admin.orgId, admin.name, "Renamed the organization", `${admin.org.name} to ${name}`);
+  return redirect("/admin/policies?saved=1");
+}
 export async function updateOrganization(fd: FormData) {
   const admin = await requireAdmin();
-  const name = str(fd, "name"), al = parseAllowance(fd);
-  if (!name || !al) return redirect("/admin/policies?error=org");
-  if (await orgNameTaken(name, admin.orgId)) return redirect("/admin/policies?error=nametaken");
-  await prisma.organization.update({ where: { id: admin.orgId }, data: { name, requireApproval: fd.get("approval") === "on", leavePeriod: al.period, leaveRule: al.rule, periodDays: al.days.join(",") } });
+  const al = parseAllowance(fd);
+  if (!al) return redirect("/admin/policies?error=org");
+  await prisma.organization.update({ where: { id: admin.orgId }, data: { requireApproval: fd.get("approval") === "on", leavePeriod: al.period, leaveRule: al.rule, periodDays: al.days.join(",") } });
   await prisma.leaveType.updateMany({ where: { orgId: admin.orgId, quarterly: true }, data: { daysPerYear: totalDays(al) } });
   await audit(admin.orgId, admin.name, "Changed annual leave allowance", `${al.period}, ${al.rule}: ${al.days.join(", ")} (${totalDays(al)} days a year)`);
   return redirect("/admin/policies?saved=1");
+}
+// Permanently deletes the whole organization: people, leave, settings and history. Any admin can do it, so it asks for the exact name.
+export async function deleteOrganization(fd: FormData) {
+  const admin = await requireAdmin();
+  const back = "/admin/policies?error=";
+  if (cleanName(str(fd, "confirm")).toLowerCase() !== admin.org.name.toLowerCase() || fd.get("understand") !== "on") return redirect(back + "delconfirm");
+  if (admin.hasPassword && !(await bcrypt.compare(String(fd.get("password") ?? ""), admin.passwordHash))) return redirect(back + "delpassword");
+  const orgId = admin.orgId, orgName = admin.org.name;
+  const admins = await prisma.user.findMany({ where: { orgId, active: true, ...adminWhere } });
+  await prisma.$transaction([
+    prisma.notification.deleteMany({ where: { user: { orgId } } }),
+    prisma.passwordReset.deleteMany({ where: { user: { orgId } } }),
+    prisma.leaveRequest.deleteMany({ where: { user: { orgId } } }),
+    prisma.user.updateMany({ where: { orgId }, data: { managerId: null } }),
+    prisma.user.deleteMany({ where: { orgId } }),
+    prisma.role.deleteMany({ where: { orgId } }),
+    prisma.leaveType.deleteMany({ where: { orgId } }),
+    prisma.holiday.deleteMany({ where: { orgId } }),
+    prisma.closure.deleteMany({ where: { orgId } }),
+    prisma.auditLog.deleteMany({ where: { orgId } }),
+    prisma.organization.delete({ where: { id: orgId } }),
+  ]);
+  console.log(`[organization deleted] ${orgName} by ${admin.name} (${admin.email})`);
+  for (const a of admins) await sendEmail(a.email, `${orgName} was deleted from LeaveDesk`, `${admin.name} deleted the organization ${orgName} and all its people, leave records and settings. This cannot be undone. If this was not expected, contact them.`);
+  await destroySession();
+  return redirect("/sign-in?deleted=1");
 }
 export async function addClosure(fd: FormData) {
   const admin = await requireAdmin();

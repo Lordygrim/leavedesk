@@ -50,6 +50,9 @@ model User {
   requests      LeaveRequest[]
   notifications Notification[]
   resets        PasswordReset[]
+
+  @@index([orgId])
+  @@index([managerId])
 }
 
 // One row per "forgot password" email. Only a hash of the token is stored; each link works once and expires.
@@ -60,6 +63,8 @@ model PasswordReset {
   tokenHash String    @unique
   expiresAt DateTime
   createdAt DateTime  @default(now())
+
+  @@index([userId])
 }
 
 // Job titles for one organization. A role whose name is HR (or Human Resources) gives its people admin access automatically.
@@ -103,6 +108,11 @@ model LeaveRequest {
   decidedAt        DateTime?
   actualReturnDate String?
   createdAt        DateTime  @default(now())
+
+  @@index([userId])
+  @@index([typeId])
+  @@index([status])
+  @@index([startDate])
 }
 
 model Holiday {
@@ -126,6 +136,8 @@ model Closure {
   endDate   String  @default("")
   startMd String
   endMd   String
+
+  @@index([orgId])
 }
 
 // A person who has started signing up but has not created their organization yet.
@@ -149,6 +161,8 @@ model Notification {
   body      String
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
+
+  @@index([userId, read])
 }
 
 model AuditLog {
@@ -159,4 +173,6 @@ model AuditLog {
   action    String
   detail    String
   createdAt DateTime     @default(now())
+
+  @@index([orgId, createdAt])
 }

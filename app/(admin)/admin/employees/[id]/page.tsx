@@ -18,6 +18,7 @@ export default async function EditEmployee({ params, searchParams }: { params: P
   const u = await prisma.user.findFirst({ where: { id, orgId: admin.orgId }, include: { role: true } });
   if (!u) notFound();
   const roles = await prisma.role.findMany({ where: { orgId: admin.orgId }, orderBy: { name: "asc" } });
+  const depts = [...new Set((await prisma.user.findMany({ where: { orgId: admin.orgId }, select: { department: true } })).map((d) => d.department))].sort();
   const others = await prisma.user.findMany({ where: { orgId: admin.orgId, active: true, NOT: { id: u.id } }, include: { role: true }, orderBy: { name: "asc" } });
   const how = u.isOwner ? "This person created the organization, so they always have admin access." : u.role.grantsAdmin ? "This person has admin access automatically because their role is HR." : u.isAdmin ? "This person has admin access, granted by the owner or another admin." : "This person does not have admin access.";
   return (
@@ -30,9 +31,9 @@ export default async function EditEmployee({ params, searchParams }: { params: P
       <form action={updateEmployee} className={`${card} flex max-w-xl flex-col gap-4 p-6`}>
         <input type="hidden" name="id" value={u.id} />
         <label className={lbl}>Work email (use their official address)<input className={field} type="email" name="email" defaultValue={u.email} required /></label>
-        <label className={lbl}>Role<select className={field} name="roleId" defaultValue={u.roleId}>{roles.map((r) => <option key={r.id} value={r.id}>{r.name}{r.grantsAdmin ? " (admin)" : ""}</option>)}</select></label>
+        <label className={lbl}>Role (type a new one, or pick a suggestion)<input className={field} name="role" list="role-list" defaultValue={u.role.name} maxLength={60} required /><datalist id="role-list">{roles.map((r) => <option key={r.id} value={r.name} />)}</datalist></label>
         <label className={lbl}>Reports to (approves their leave, along with the admins)<select className={field} name="managerId" defaultValue={u.managerId ?? ""}><option value="">No one (only admins approve)</option>{others.map((o) => <option key={o.id} value={o.id}>{o.name} ({o.role.name})</option>)}</select></label>
-        <label className={lbl}>Department or practice area<input className={field} name="department" defaultValue={u.department} required /></label>
+        <label className={lbl}>Department or practice area (type it, or pick a suggestion)<input className={field} name="department" list="dept-list" defaultValue={u.department} maxLength={60} required /><datalist id="dept-list">{depts.map((d) => <option key={d} value={d} />)}</datalist></label>
         <label className={lbl}>Set a new password (leave empty to keep the current one)<input className={field} name="password" minLength={8} /></label>
         <label className="flex items-center gap-3 text-sm"><input type="checkbox" name="active" defaultChecked={u.active} className="h-4 w-4" />Active (untick to stop this person signing in)</label>
         <button className={`${btn} self-start`}>Save changes</button>

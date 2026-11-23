@@ -1,15 +1,16 @@
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/dal";
-import { setAdminAccess, setRoleAdmin, addClosure, updateClosure, addHoliday, addLeaveType, addRole, deleteClosure, deleteHoliday, deleteRole, updateLeaveType, updateOrganization } from "@/lib/actions";
+import { setAdminAccess, setRoleAdmin, addClosure, updateClosure, addHoliday, addLeaveType, addRole, deleteClosure, deleteHoliday, deleteRole, updateLeaveType, updateOrganization, renameOrganization, deleteOrganization } from "@/lib/actions";
 import { closureEnded, closureText, fmtDay, todayNairobi } from "@/lib/dates";
 import { upgradeClosures } from "@/lib/leave";
 import { allowanceOf } from "@/lib/allowance";
 import { isHrRole } from "@/lib/defaults";
 import { isAdminUser } from "@/lib/dal";
 import AllowanceFields from "@/components/AllowanceFields";
+import PasswordInput from "@/components/PasswordInput";
 import { btnSm, card, err, field, fieldSm, ghostSm, h1, h2, lbl, muted, note, tbl } from "@/components/styles";
 const ERR: Record<string, string> = {
-  org: "Enter a name and whole numbers from 0 to 260 for each period.", nametaken: "Another organization already uses that name.", closure: "Enter a name and both dates.", type: "Enter a leave type name and a number of days from 0 to 260.",
+  org: "Enter whole numbers from 0 to 260 for each period.", orgname: "Enter a name for the organization.", delconfirm: "The name you typed does not match, or the box was not ticked. Nothing was deleted.", delpassword: "Your password is wrong. Nothing was deleted.", nametaken: "Another organization already uses that name.", closure: "Enter a name and both dates.", type: "Enter a leave type name and a number of days from 0 to 260.",
   typeexists: "That leave type already exists.", holiday: "Enter a date and a name for the holiday.", role: "Enter a role name.", roleexists: "That role already exists.",
   ownersonly: "Only the organization owner can change which roles have admin access.", hrlocked: "HR roles always have admin access.",
   owner: "The owner always has admin access.", hrrole: "That person has admin access through an HR role. Change their role to remove it.", lastadmin: "At least one active admin is required.",
@@ -38,9 +39,14 @@ export default async function Policies({ searchParams }: { searchParams: Promise
       {sp.error && <div className={err}>{ERR[sp.error]}</div>}
       <div className="grid items-start gap-6 xl:grid-cols-2">
         <section className={sec}>
-          <h2 className={h2}>Organization and annual leave allowance</h2>
+          <h2 className={h2}>Organization name</h2>
+          <form action={renameOrganization} className="flex flex-wrap items-end gap-3">
+            <label className={`${lbl} min-w-60 flex-1`}>Name<input className={field} name="name" defaultValue={org.name} maxLength={120} required /></label>
+            <button className={btnSm + " h-12"}>Rename</button>
+          </form>
+          <p className={muted}>Any admin can rename the organization. New people join by typing this exact name, so tell your team if it changes.</p>
+          <h2 className={`${h2} mt-2`}>Annual leave allowance and joining</h2>
           <form action={updateOrganization} className="flex flex-col gap-4">
-            <label className={lbl}>Organization name<input className={field} name="name" defaultValue={org.name} required /></label>
             <label className="flex items-start gap-3 text-sm"><input type="checkbox" name="approval" defaultChecked={org.requireApproval} className="mt-0.5 h-4 w-4" />People who join by typing this organization&apos;s name must be approved by an admin before they can sign in (recommended)</label>
             <AllowanceFields initial={allowanceOf(org)} />
             <p className={muted}>Saving changes everyone&apos;s allowance straight away. Days already taken stay counted.</p>
@@ -151,6 +157,17 @@ export default async function Policies({ searchParams }: { searchParams: Promise
           </form>
         </section>
       </div>
+      <section className="flex flex-col gap-4 rounded-2xl border border-rjt p-6">
+        <h2 className="text-base font-medium text-rjt">Delete this organization</h2>
+        <p className={muted}>This permanently deletes {org.name}: every person and login, all leave requests, notifications, policies, holidays and the audit trail. It cannot be undone, and every admin is emailed. Anyone with admin access can do this. If you only want to stop using the app for now, do not delete it.</p>
+        <a className={`${ghostSm} self-start`} href="/admin/reports/export">Export the leave report first (CSV)</a>
+        <form action={deleteOrganization} className="flex max-w-xl flex-col gap-4">
+          <label className={lbl}>Type the organization name, &quot;{org.name}&quot;, to confirm<input className={field} name="confirm" autoComplete="off" required /></label>
+          {admin.hasPassword && <label className={lbl}>Your password<PasswordInput name="password" autoComplete="current-password" /></label>}
+          <label className="flex items-start gap-3 text-sm"><input type="checkbox" name="understand" className="mt-0.5 h-4 w-4" required />I understand this deletes everything and cannot be undone</label>
+          <button className="inline-flex h-12 cursor-pointer items-center justify-center self-start rounded-xl border border-rjt bg-transparent px-8 text-base font-medium text-rjt hover:bg-rjt hover:text-bg">Delete the organization</button>
+        </form>
+      </section>
     </>
   );
 }

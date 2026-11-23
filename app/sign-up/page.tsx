@@ -6,6 +6,7 @@ import { btn, err, field, ghostSm, h1, lbl, muted, note } from "@/components/sty
 const ERR: Record<string, string> = {
   invalid: "Enter a valid email address.", short: "The password must be at least 8 characters.", mismatch: "The two passwords don't match.",
   exists: "An account already uses that email. Sign in instead.", expired: "Your sign-up session expired. Sign in with the email or Google account you signed up with to carry on where you left off.",
+  noemail: "Email is not set up on this server yet, so the confirmation link cannot be sent. Sign up with Google instead, or contact the administrator.",
   resume: "You already signed up with that email. Sign in to carry on creating or joining an organization.",
   googlesetup: "Google sign-up is not set up yet. The person running the app needs to add the Google keys to .env (see the README) and restart.",
   google: "Google sign-up did not work. Please try again.",
@@ -23,7 +24,7 @@ export default async function SignUp({ searchParams }: { searchParams: Promise<{
       {sp.sent ? (
         <div className="flex flex-col gap-3">
           <div className={note}>Almost there. We sent a confirmation link to your email. Open it to continue and create your organization. It works for 24 hours.</div>
-          {sp.devlink && !process.env.RESEND_API_KEY && (
+          {sp.devlink && !process.env.RESEND_API_KEY && process.env.NODE_ENV !== "production" && (
             <p className={muted}>Development only: no email service is set up, so here is your link: <a className="break-all text-ac underline" href={sp.devlink}>confirm my email</a></p>
           )}
           <Link className={`${ghostSm} self-start`} href="/sign-up">Use a different email</Link>

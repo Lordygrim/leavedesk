@@ -109,6 +109,22 @@ Reminders: `GET /api/cron/reminders` (needs `CRON_SECRET`) reminds people the da
 - On Next.js 16, rename `middleware.ts` to `proxy.ts` and export `proxy`.
 - Set a new long random `AUTH_SECRET` and `CRON_SECRET` before deploying.
 
+## Roles, departments and the organization
+
+- **Roles and departments are typed in**, so every organization uses its own words. Fields suggest existing ones but accept anything. A role that does not exist yet is created. A role named HR (or Human Resources) carries admin access. People who join by name cannot type a role that carries admin access.
+- Admins change a person's role or department under **Employees > Edit**, and add new roles by typing them.
+- Any admin can **rename** the organization or **delete** it (Policies). Deleting needs the exact name, the admin's password (if they have one) and a tick box, removes everything, and emails every admin.
+
+## Going to production (checklist)
+
+1. Commit the code, including `prisma/migrations/`, to a private Git repository. Never commit `.env`.
+2. Create a managed PostgreSQL database (Neon, Supabase, AWS RDS...) with automatic backups.
+3. Deploy: on Vercel import the repository and add the environment variables from `.env.example` (the `vercel-build` script applies migrations). Or build the Docker image and run it behind HTTPS.
+4. Set `APP_URL` to your https address, add `https://YOUR-DOMAIN/api/auth/google/callback` to the Google OAuth client, and publish the consent screen.
+5. Verify your sending domain in Resend and set `RESEND_API_KEY` and `MAIL_FROM`. Without a key, sign-up by email is refused in production.
+6. Check Cron Jobs in the Vercel dashboard (or call `/api/cron/reminders` daily with `Authorization: Bearer CRON_SECRET`).
+7. Test the whole flow on the live address, then delete the test organizations.
+
 ## Not built yet
 
 Attachments such as sick notes, signing in to a specific organization when the same email is used in several, an owner-transfer option, approval chains with more than one step.

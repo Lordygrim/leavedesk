@@ -13,6 +13,7 @@ export default async function Employees({ searchParams }: { searchParams: Promis
   const waiting = await prisma.user.findMany({ where: { orgId: admin.orgId, joinPending: true }, include: { role: true }, orderBy: { name: "asc" } });
   const users = await prisma.user.findMany({ where: { orgId: admin.orgId, joinPending: false }, include: { role: true, manager: true }, orderBy: { name: "asc" } });
   const roles = await prisma.role.findMany({ where: { orgId: admin.orgId }, orderBy: { name: "asc" } });
+  const depts = [...new Set((await prisma.user.findMany({ where: { orgId: admin.orgId }, select: { department: true } })).map((d) => d.department))].sort();
   const rows = await Promise.all(users.map(async (u) => ({ u, b: await balance(u.id, annual.id) })));
   const access = (u: (typeof users)[number]) => (u.isOwner ? "Owner (admin)" : u.isAdmin ? "Admin" : u.role.grantsAdmin ? "Admin (HR role)" : "Staff");
   return (
@@ -40,12 +41,12 @@ export default async function Employees({ searchParams }: { searchParams: Promis
         <form action={addEmployee} className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           <label className={lbl}>Full name<input className={field} name="name" required /></label>
           <label className={lbl}>Work email<input className={field} type="email" name="email" required /></label>
-          <label className={lbl}>Role<select className={field} name="roleId">{roles.map((r) => <option key={r.id} value={r.id}>{r.name}{r.grantsAdmin ? " (admin)" : ""}</option>)}</select></label>
-          <label className={lbl}>Department or practice area<input className={field} name="department" required /></label>
+          <label className={lbl}>Role (type it, or pick a suggestion)<input className={field} name="role" list="role-list" maxLength={60} required /><datalist id="role-list">{roles.map((r) => <option key={r.id} value={r.name} />)}</datalist></label>
+          <label className={lbl}>Department or practice area (type it, or pick a suggestion)<input className={field} name="department" list="dept-list" maxLength={60} required /><datalist id="dept-list">{depts.map((d) => <option key={d} value={d} />)}</datalist></label>
           <label className={lbl}>Temporary password (min 8 characters)<input className={field} name="password" minLength={8} required /></label>
           <div className="flex items-end"><button className={btn}>Add employee</button></div>
         </form>
-        <p className={`${muted} mt-3`}>Give the person their temporary password yourself. They can change it under Profile. Add roles under Policies.</p>
+        <p className={`${muted} mt-3`}>Give the person their temporary password yourself. They can change it under Profile. A role you type that does not exist yet is created. A role named HR gives admin access.</p>
       </details>
       <div className={card}><table className={tbl}>
         <thead><tr><th>Employee</th><th>Department</th><th>Access</th><th>Reports to</th><th>Annual leave left</th><th></th></tr></thead>
